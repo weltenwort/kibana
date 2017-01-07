@@ -17,7 +17,6 @@ import {
   selectRows,
 } from './query';
 
-
 const module = uiModules.get('apps/context', [
   'kibana',
   'ngRoute',
@@ -77,6 +76,18 @@ function ContextAppController($scope, Private) {
     (newValues) => {
       _.assign(this, newValues);
     },
+  );
+
+  this.getOrSetPredecessorCount = value => (
+    _.isUndefined(value)
+    ? this.state.queryParameters.predecessorCount
+    : this.actions.fetchGivenPredecessorRows(value)
+  );
+
+  this.getOrSetSuccessorCount = value => (
+    _.isUndefined(value)
+    ? this.state.queryParameters.successorCount
+    : this.actions.fetchGivenSuccessorRows(value)
   );
 }
 

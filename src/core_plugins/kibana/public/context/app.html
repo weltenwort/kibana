@@ -8,14 +8,6 @@
         <div class="kuiLocalBreadcrumb" ng-bind="contextApp.state.queryParameters.indexPattern.id"></div>
       </div>
     </div>
-    <div class="kuiLocalNavRow__section">
-      <context-size-picker
-        predecessor-count="contextApp.state.queryParameters.predecessorCount"
-        successor-count="contextApp.state.queryParameters.successorCount"
-        set-predecessor-count="contextApp.actions.fetchGivenPredecessorRows"
-        set-successor-count="contextApp.actions.fetchGivenSuccessorRows"
-      />
-    </div>
   </div>
   <div class="kuiLocalNavRow kuiLocalNavRow--secondary">
     <div class="kuiLocalTabs">
@@ -25,14 +17,26 @@
 </div>
 
 <div class="kuiViewContent kuiViewContentItem" role="main">
-  <context-loading-button
-    disabled="contextApp.derivedState.isLoadingPredecessorRows()"
-    icon="'fa-chevron-up'"
-    ng-click="contextApp.actions.fetchMorePredecessorRows()"
-    ng-if="!contextApp.derivedState.isLoadingAnchorRow()"
-  >
-    Load newer entries
-  </context-loading-button>
+  <div class="kuiInlineFormGroup">
+    <context-loading-button
+      disabled="contextApp.derivedState.isLoadingPredecessorRows()"
+      icon="'fa-chevron-up'"
+      ng-click="contextApp.actions.fetchMorePredecessorRows()"
+      ng-if="!contextApp.derivedState.isLoadingAnchorRow()"
+    >
+      Load newer entries
+    </context-loading-button>
+
+    <input
+      class="kuiTextInput contextSizePicker__item contextSizePicker__sizeInput"
+      ng-model-options="{updateOn: 'change', getterSetter: true, debounce: 200}"
+      ng-model="contextApp.getOrSetPredecessorCount"
+      type="number"
+    >
+
+    <div class="contextSizePicker__item">entries</div>
+  </div>
+
   <div class="discover-overlay" ng-if="contextApp.derivedState.isLoadingAnchorRow()">
     <h2>Loading...</h2>
   </div>
@@ -46,12 +50,24 @@
     >
     </doc-table>
   </div>
-  <context-loading-button
-    disabled="contextApp.derivedState.isLoadingSuccessorRows()"
-    icon="'fa-chevron-down'"
-    ng-click="contextApp.actions.fetchMoreSuccessorRows()"
-    ng-if="!contextApp.derivedState.isLoadingAnchorRow()"
-  >
-    Load older entries
-  </context-loading-button>
+
+  <div class="kuiInlineFormGroup">
+    <context-loading-button
+      disabled="contextApp.derivedState.isLoadingSuccessorRows()"
+      icon="'fa-chevron-down'"
+      ng-click="contextApp.actions.fetchMoreSuccessorRows()"
+      ng-if="!contextApp.derivedState.isLoadingAnchorRow()"
+    >
+      Load older entries
+    </context-loading-button>
+
+    <input
+      class="kuiTextInput contextSizePicker__item contextSizePicker__sizeInput"
+      ng-model-options="{updateOn: 'change', getterSetter: true, debounce: 200}"
+      ng-model="contextApp.getOrSetSuccessorCount"
+      type="number"
+    >
+
+    <div class="contextSizePicker__item">entries</div>
+  </div>
 </div>
