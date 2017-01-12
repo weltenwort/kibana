@@ -32,7 +32,10 @@
 
     <div class="kuiBarSection">
       <div>Limit to</div>
-      <context-size-picker model="contextApp.getOrSetPredecessorCount"></context-size-picker>
+      <context-size-picker
+        count="contextApp.state.queryParameters.predecessorCount"
+        set-count="contextApp.actions.fetchGivenPredecessorRows"
+      ></context-size-picker>
       <div>newer entries</div>
     </div>
   </div>
@@ -78,7 +81,10 @@
 
     <div class="kuiBarSection">
       <div>Limit to</div>
-      <context-size-picker model="contextApp.getOrSetSuccessorCount"></context-size-picker>
+      <context-size-picker
+        count="contextApp.state.queryParameters.successorCount"
+        set-count="contextApp.actions.fetchGivenSuccessorRows"
+      ></context-size-picker>
       <div>older entries</div>
     </div>
   </div>

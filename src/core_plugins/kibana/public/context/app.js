@@ -77,18 +77,6 @@ function ContextAppController($scope, Private) {
       _.assign(this, newValues);
     },
   );
-
-  this.getOrSetPredecessorCount = value => (
-    _.isUndefined(value)
-    ? this.state.queryParameters.predecessorCount
-    : this.actions.fetchGivenPredecessorRows(value)
-  );
-
-  this.getOrSetSuccessorCount = value => (
-    _.isUndefined(value)
-    ? this.state.queryParameters.successorCount
-    : this.actions.fetchGivenSuccessorRows(value)
-  );
 }
 
 function createInitialState() {
