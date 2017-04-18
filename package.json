@@ -176,7 +176,7 @@
     "react-select": "1.0.0-rc.1",
     "react-sortable": "1.1.0",
     "reactcss": "1.0.7",
-    "redux": "3.0.0",
+    "redux": "3.6.0",
     "redux-thunk": "0.1.0",
     "request": "2.61.0",
     "resize-observer-polyfill": "1.2.1",
