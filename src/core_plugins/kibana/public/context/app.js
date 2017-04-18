@@ -1,19 +1,20 @@
 import _ from 'lodash';
+import { bindActionCreators } from 'redux';
 
 import { uiModules } from 'ui/modules';
 import contextAppTemplate from './app.html';
 import './components/loading_button';
 import './components/size_picker/size_picker';
 import {
-  createInitialQueryParametersState,
-  QueryParameterActionsProvider,
-  QUERY_PARAMETER_KEYS,
-} from './query_parameters';
+  actions as documentsActions,
+} from './documents';
 import {
-  createInitialLoadingStatusState,
-  LOADING_STATUS,
-  QueryActionsProvider,
-} from './query';
+  actions as parametersActions,
+  constants as parametersConstants,
+} from './parameters';
+import * as selectors from './selectors';
+import { CreateStoreProvider } from './store';
+
 
 const module = uiModules.get('apps/context', [
   'elasticsearch',
@@ -42,69 +43,69 @@ module.directive('contextApp', function ContextApp() {
   };
 });
 
-function ContextAppController($scope, config, Private, timefilter) {
-  const queryParameterActions = Private(QueryParameterActionsProvider);
-  const queryActions = Private(QueryActionsProvider);
+function ContextAppController($scope, $timeout, config, Private, timefilter) {
+  const createStore = Private(CreateStoreProvider);
 
   // this is apparently the "canonical" way to disable the time picker
   timefilter.enabled = false;
 
-  this.state = createInitialState(
-    parseInt(config.get('context:step'), 10),
-    this.discoverUrl,
-  );
+  this.store = createStore();
 
-  this.actions = _.mapValues(Object.assign(
+  this.state = this.store.getState();
+  const unsubcribeFromStore = this.store.subscribe(() => (
+    $timeout(() => this.state = this.store.getState())
+  ));
+  $scope.$on('$destroy', () => unsubcribeFromStore());
+
+  this.actions = bindActionCreators(Object.assign(
     {},
-    queryParameterActions,
-    queryActions,
-  ), (action) => (...args) => action(this.state)(...args));
+    parametersActions,
+    documentsActions,
+  ), this.store.dispatch);
 
-  this.constants = {
-    LOADING_STATUS,
-  };
+  this.selectors = _.mapValues(selectors, (selector) => (...args) => (
+    selector(...args, this.store.getState())
+  ));
 
-  $scope.$watchGroup([
-    () => this.state.rows.predecessors,
-    () => this.state.rows.anchor,
-    () => this.state.rows.successors,
-  ], (newValues) => this.actions.setAllRows(...newValues));
+
+  this.store.dispatch(parametersActions.setParameters({
+    defaultStepSize: parseInt(config.get('context:step'), 10),
+  }));
 
   /**
    * Sync query parameters to arguments
    */
   $scope.$watchCollection(
-    () => _.pick(this, QUERY_PARAMETER_KEYS),
+    () => _.pick(this, parametersConstants.PARAMETER_KEYS),
     (newValues) => {
       // break the watch cycle
-      if (!_.isEqual(newValues, this.state.queryParameters)) {
-        this.actions.fetchAllRowsWithNewQueryParameters(newValues);
+      if (!_.isEqual(newValues, this.state.parameters)) {
+        this.actions.fetchAllDocumentsWithNewParameters(newValues);
       }
     },
   );
 
-  $scope.$watchCollection(
-    () => this.state.queryParameters,
-    (newValues) => {
-      _.assign(this, newValues);
-    },
-  );
+  // $scope.$watchCollection(
+  //   () => this.state.parameters,
+  //   (newValues) => {
+  //     _.assign(this, newValues);
+  //   },
+  // );
 }
 
-function createInitialState(defaultStepSize, discoverUrl) {
-  return {
-    queryParameters: createInitialQueryParametersState(defaultStepSize),
-    rows: {
-      all: [],
-      anchor: null,
-      predecessors: [],
-      successors: [],
-    },
-    loadingStatus: createInitialLoadingStatusState(),
-    navigation: {
-      discover: {
-        url: discoverUrl,
-      },
-    },
-  };
-}
+// function createInitialState(defaultStepSize, discoverUrl) {
+//   return {
+//     queryParameters: createInitialQueryParametersState(defaultStepSize),
+//     rows: {
+//       all: [],
+//       anchor: null,
+//       predecessors: [],
+//       successors: [],
+//     },
+//     navigation: {
+//       discover: {
+//         url: discoverUrl,
+//       },
+//     },
+//   };
+// }

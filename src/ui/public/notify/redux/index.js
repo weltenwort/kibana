@@ -1,0 +1,1 @@
+export { NotifierMiddlewareProvider } from './middleware';

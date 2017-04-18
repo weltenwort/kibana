@@ -2,13 +2,13 @@
   <div class="kuiLocalNavRow">
     <div class="kuiLocalNavRow__section">
       <div class="kuiLocalTitle">
-        Surrounding Documents in {{ contextApp.state.queryParameters.indexPattern.id }}
+        Surrounding Documents in {{ contextApp.selectors.getIndexPatternParameter().id }}
       </div>
     </div>
   </div>
   <div class="kuiLocalNavRow kuiLocalNavRow--secondary">
     <div class="kuiLocalTabs">
-      <div class="kuiLocalTab kuiLocalTab-isSelected" ng-bind="contextApp.state.queryParameters.anchorUid"></div>
+      <div class="kuiLocalTab kuiLocalTab-isSelected" ng-bind="contextApp.selectors.getAnchorUidParameter()"></div>
     </div>
   </div>
 </div>
@@ -16,7 +16,7 @@
 <!-- Error feedback -->
 <div
   class="kuiViewContent kuiViewContentItem"
-  ng-if="contextApp.state.loadingStatus.anchor === contextApp.constants.LOADING_STATUS.FAILED"
+  ng-if="contextApp.selectors.hasFailedLoadingAnchorDocument()"
 >
   <div class="kuiInfoPanel kuiInfoPanel--error kuiVerticalRhythm">
     <div class="kuiInfoPanelHeader">
@@ -38,7 +38,7 @@
 
 <div
   class="kuiViewContent kuiViewContentItem"
-  ng-if="contextApp.state.loadingStatus.anchor !== contextApp.constants.LOADING_STATUS.FAILED"
+  ng-if="!contestApp.selectors.hasFailedLoadingAnchorDocument()"
   role="main"
 >
   <!-- Controls -->
@@ -46,29 +46,31 @@
     <div class="kuiBarSection">
       <context-loading-button
         data-test-subj="predecessorLoadMoreButton"
-        is-disabled="![
-          contextApp.constants.LOADING_STATUS.LOADED,
-          contextApp.constants.LOADING_STATUS.FAILED,
-        ].includes(contextApp.state.loadingStatus.predecessors)"
+        is-disabled="contextApp.selectors.isLoadingPredecessorDocuments()"
         icon="'fa-chevron-up'"
-        ng-click="contextApp.actions.fetchMorePredecessorRows()"
+        ng-click="contextApp.actions.fetchGivenPredecessorDocuments(
+          contextApp.selectors.getIndexPatternParameter(),
+          contextApp.selectors.getAnchorDocument().sort,
+          contextApp.selectors.getSortParameter(),
+          contextApp.selectors.getPredecessorCountParameter() + contextApp.selectors.getStepSizeParameter()
+        )"
       >
-        Load {{ contextApp.state.queryParameters.defaultStepSize }} more
+        Load {{ contextApp.selectors.getStepSizeParameter() }} more
       </context-loading-button>
       <context-size-picker
-        count="contextApp.state.queryParameters.predecessorCount"
+        count="contextApp.selectors.getPredecessorCountParameter()"
         data-test-subj="predecessorCountPicker"
-        is-disabled="contextApp.state.loadingStatus.anchor !== contextApp.constants.LOADING_STATUS.LOADED"
-        on-change-count="contextApp.actions.fetchGivenPredecessorRows"
+        is-disabled="contextApp.selectors.isLoadingPredecessorDocuments()"
+        on-change-count="contextApp.actions.fetchGivenPredecessorDocuments"
       ></context-size-picker>
       <span>newer documents</span>
       <span
         class="kuiStatusText kuiStatusText--warning"
-        ng-if="(contextApp.state.loadingStatus.predecessors === contextApp.constants.LOADING_STATUS.LOADED)
-          && (contextApp.state.queryParameters.predecessorCount > contextApp.state.rows.predecessors.length)"
+        ng-if="contextApp.selectors.hasLoadedPredecessorDocuments()
+          && contextApp.selectors.hasFewerPredecessorDocuments()"
       >
         <span class="kuiStatusText__icon kuiIcon fa-bolt"></span>
-        <span ng-bind-template="Only {{ contextApp.state.rows.predecessors.length }} documents newer than the anchor could be found."></span>
+        <span ng-bind-template="Only {{ contextApp.selectors.getPredecessorDocuments().length }} documents newer than the anchor could be found."></span>
       </span>
     </div>
 
@@ -78,10 +80,7 @@
 
   <!-- Loading feedback -->
   <div
-    ng-if="[
-      contextApp.constants.LOADING_STATUS.UNINITIALIZED,
-      contextApp.constants.LOADING_STATUS.LOADING,
-    ].includes(contextApp.state.loadingStatus.anchor)"
+    ng-if="contextApp.selectors.isLoadingAnchorDocument()"
     class="kuiPanel kuiPanel--centered kuiVerticalRhythm"
   >
     <div class="kuiLoadingItems">
@@ -91,15 +90,15 @@
 
   <!-- Table -->
   <div
-    ng-if="contextApp.state.loadingStatus.anchor === contextApp.constants.LOADING_STATUS.LOADED"
+    ng-if="!contextApp.selectors.isLoadingAnchorDocument()"
     class="kuiPanel kuiVerticalRhythm"
   >
     <div class="discover-table" fixed-scroll>
       <doc-table
-        hits="contextApp.state.rows.all"
-        index-pattern="contextApp.state.queryParameters.indexPattern"
-        sorting="contextApp.state.queryParameters.sort"
-        columns="contextApp.state.queryParameters.columns"
+        hits="contextApp.selectors.getAllDocuments()"
+        index-pattern="contextApp.selectors.getIndexPatternParameter()"
+        sorting="contextApp.selectors.getSortParameter()"
+        columns="contextApp.selectors.getColumnsParameter()"
         infinite-scroll="true"
       ></doc-table>
     </div>
@@ -110,29 +109,31 @@
     <div class="kuiBarSection">
       <context-loading-button
         data-test-subj="successorLoadMoreButton"
-        is-disabled="![
-          contextApp.constants.LOADING_STATUS.LOADED,
-          contextApp.constants.LOADING_STATUS.FAILED,
-        ].includes(contextApp.state.loadingStatus.successors)"
+        is-disabled="contextApp.selectors.isLoadingSuccessorDocuments()"
         icon="'fa-chevron-down'"
-        ng-click="contextApp.actions.fetchMoreSuccessorRows()"
+        ng-click="contextApp.actions.fetchGivenSuccessorDocuments(
+          contextApp.selectors.getIndexPatternParameter(),
+          contextApp.selectors.getAnchorDocument().sort,
+          contextApp.selectors.getSortParameter(),
+          contextApp.selectors.getSuccessorCountParameter() + contextApp.selectors.getStepSizeParameter()
+        )"
       >
-        Load {{ contextApp.state.queryParameters.defaultStepSize }} more
+        Load {{ contextApp.selectors.getStepSizeParameter() }} more
       </context-loading-button>
       <context-size-picker
-        count="contextApp.state.queryParameters.successorCount"
+        count="contextApp.selectors.getSuccessorCountParameter()"
         data-test-subj="successorCountPicker"
-        is-disabled="contextApp.state.loadingStatus.anchor !== contextApp.constants.LOADING_STATUS.LOADED"
-        on-change-count="contextApp.actions.fetchGivenSuccessorRows"
+        is-disabled="contextApp.selectors.isLoadingSuccessorDocuments()"
+        on-change-count="contextApp.actions.fetchGivenSuccessorDocuments"
       ></context-size-picker>
       <div>older documents</div>
       <span
         class="kuiStatusText kuiStatusText--warning"
-        ng-if="(contextApp.state.loadingStatus.successors === contextApp.constants.LOADING_STATUS.LOADED)
-          && (contextApp.state.queryParameters.successorCount > contextApp.state.rows.successors.length)"
+        ng-if="contextApp.selectors.hasLoadedSuccessorDocuments()
+          && contextApp.selectors.hasFewerSuccessorDocuments()"
       >
         <span class="kuiStatusText__icon kuiIcon fa-bolt"></span>
-        <span ng-bind-template="Only {{ contextApp.state.rows.successors.length }} documents older than the anchor could be found."></span>
+        <span ng-bind-template="Only {{ contextApp.selectors.getSuccessorDocuments().length }} documents older than the anchor could be found."></span>
       </span>
     </div>
 
