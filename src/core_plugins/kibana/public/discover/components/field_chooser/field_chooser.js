@@ -34,6 +34,7 @@ app.directive('discFieldChooser', function ($location, globalState, config, $rou
     link: function ($scope) {
       $scope.setIndexPattern = function (id) {
         $scope.state.index = id;
+        $scope.state.columns = config.get('defaultColumns').slice();
         $scope.state.save();
       };
 
