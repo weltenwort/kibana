@@ -12,6 +12,7 @@ rules:
   eqeqeq: off
   guard-for-in: off
   indent: off
+  indent-legacy: off
   max-len: off
   new-cap: off
   no-caller: off

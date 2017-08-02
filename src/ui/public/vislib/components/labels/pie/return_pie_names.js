@@ -1,4 +1,4 @@
-// eslint-disable-next-line kibana-custom/no-default-export
+// eslint-disable-next-line @elastic/kibana-custom/no-default-export
 export default function ReturnPieNames() {
   return function returnNames(array, index, columns) {
     const names = [];
