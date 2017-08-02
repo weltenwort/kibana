@@ -33,7 +33,10 @@ module.exports = {
     'dot-notation': [ 'error', { allowKeywords: true } ],
     eqeqeq: [ 'error', 'allow-null' ],
     'guard-for-in': 'error',
-    indent: [ 'error', 2, { SwitchCase: 1 } ],
+    indent: 'off', // this rule would cause many warnings in kibana since eslint 4
+    'indent-legacy': [ 'error', 2, { // meanwhile, this emulates the eslint 3 indent rule
+      SwitchCase: 1,
+    } ]
     'key-spacing': [ 'off', { align: 'value' } ],
     'max-len': [ 'error', 140, 2, { ignoreComments: true, ignoreUrls: true } ],
     'new-cap': [ 'error', { capIsNewExceptions: [ 'Private' ] } ],
@@ -77,7 +80,11 @@ module.exports = {
     'semi-spacing': [ 'error', { before: false, after: true } ],
     semi: [ 'error', 'always' ],
     'space-before-blocks': [ 'error', 'always' ],
-    'space-before-function-paren': [ 'error', { anonymous: 'always', named: 'never' } ],
+    'space-before-function-paren': [ 'error', {
+      anonymous: 'always',
+      named: 'never',
+      asyncArrow: 'ignore', // this emulates the eslint 3 behavior
+    } ],
     'space-in-parens': [ 'error', 'never' ],
     'space-infix-ops': [ 'error', { int32Hint: false } ],
     'space-unary-ops': [ 'error' ],
