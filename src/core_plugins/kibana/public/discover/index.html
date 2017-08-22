@@ -116,8 +116,9 @@
               </visualization>
             </section>
 
-            <section class="discover-table" fixed-scroll aria-label="Documents">
-              <doc-table
+            <section class="discover-table" aria-label="Documents">
+              <react-component name="DiscoverDocumentTable" props="documentTableProps" />
+              <!--<doc-table
                 hits="rows"
                 index-pattern="indexPattern"
                 sorting="state.sort"
@@ -134,8 +135,7 @@
                 on-change-sort-order="setSortOrder"
                 on-move-column="moveColumn"
                 on-remove-column="removeColumn"
-              ></doc-table>
-
+                ></doc-table>-->
               <a tabindex="0" id="discoverBottomMarker"></a>
 
               <div ng-if="rows.length == opts.sampleSize" class="discover-table-footer">

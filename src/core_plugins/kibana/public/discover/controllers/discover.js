@@ -1,9 +1,9 @@
+import 'ngreact';
 import _ from 'lodash';
 import angular from 'angular';
 import { getSort } from 'ui/doc_table/lib/get_sort';
 import * as columnActions from 'ui/doc_table/actions/columns';
 import dateMath from '@elastic/datemath';
-import 'ui/doc_table';
 import 'ui/visualize';
 import 'ui/notify';
 import 'ui/fixed_scroll';
@@ -31,10 +31,15 @@ import { migrateLegacyQuery } from 'ui/utils/migrateLegacyQuery';
 import { QueryManagerProvider } from 'ui/query_manager';
 import { SavedObjectsClientProvider } from 'ui/saved_objects';
 
+// import 'ui/doc_table/components/document_table_cell/directive';
+import { DiscoverDocumentTable } from '../components/document_table';
+
+
 const app = uiModules.get('apps/discover', [
   'kibana/notify',
   'kibana/courier',
-  'kibana/index_patterns'
+  'kibana/index_patterns',
+  'react'
 ]);
 
 uiRoutes
@@ -96,6 +101,8 @@ app.directive('discoverApp', function () {
     controller: discoverController
   };
 });
+
+app.value('DiscoverDocumentTable', DiscoverDocumentTable);
 
 function discoverController(
   $element,
@@ -208,11 +215,11 @@ function discoverController(
       };
     }
 
-    const timeFieldName = $scope.indexPattern.timeFieldName;
-    const fields = timeFieldName ? [timeFieldName, ...selectedFields] : selectedFields;
+    // const timeFieldName = $scope.indexPattern.timeFieldName;
+    // const fields = timeFieldName ? [timeFieldName, ...selectedFields] : selectedFields;
     return {
-      searchFields: fields,
-      selectFields: fields
+      searchFields: selectedFields,
+      selectFields: selectedFields,
     };
   };
 
@@ -251,10 +258,16 @@ function discoverController(
   $scope.uiState = $state.makeStateful('uiState');
 
   function getStateDefaults() {
+    const timeFieldName = $scope.indexPattern.timeFieldName;
+    const defaultColumns = config.get('defaultColumns').slice();
+    const columns = [
+      ...(timeFieldName && !defaultColumns.includes(timeFieldName) ? [timeFieldName] : []),
+      ...(defaultColumns.length === 0 ? ['_source'] : defaultColumns),
+    ];
     return {
       query: $scope.searchSource.get('query') || { query: '', language: config.get('search:queryLanguage') },
       sort: getSort.array(savedSearch.sort, $scope.indexPattern),
-      columns: savedSearch.columns.length > 0 ? savedSearch.columns : config.get('defaultColumns').slice(),
+      columns: savedSearch.columns.length > 0 ? savedSearch.columns : columns,
       index: $scope.indexPattern.id,
       interval: 'auto',
       filters: _.cloneDeep($scope.searchSource.getOwn('filter'))
@@ -688,9 +701,9 @@ function discoverController(
 
     // stash this promise so that other calls to setupVisualization will have to wait
     loadingVis = new Promise(function (resolve) {
-      $scope.$on('ready:vis', function () {
-        resolve($scope.vis);
-      });
+      // $scope.$on('ready:vis', function () {
+      resolve($scope.vis);
+      // });
     })
     .finally(function () {
       // clear the loading flag
@@ -722,4 +735,68 @@ function discoverController(
   }
 
   init();
+
+  $scope.documentTableProps = {
+    actions: bindActions({
+      addColumn: $scope.addColumn,
+      moveColumn: $scope.moveColumn,
+      removeColumn: $scope.removeColumn,
+      toggleRowExpanded: (rowId) => updateRowState(rowId, (rowState) => ({
+        ...rowState,
+        isExpanded: !rowState.isExpanded,
+      }))
+    }, (...args) => $scope.$apply(...args)),
+    columns: [],
+    rows: [],
+  };
+
+  let rowState = {};
+  function updateRowState(rowId, updater) {
+    rowState = {
+      ...rowState,
+      [rowId]: updater(rowState[rowId] || {}),
+    };
+    $scope.documentTableProps.rows = $scope.documentTableProps.rows.map((row) => (
+      row.id !== rowId ? row : {
+        ...row,
+        ...rowState[rowId],
+      }
+    ));
+  }
+
+  $scope.$watchCollection('state.columns', (columns) => {
+    $scope.documentTableProps.columns = columns.map((column, columnIndex, columns) => {
+      const field = _.get($scope, ['indexPattern', 'fields', 'byName', column]);
+
+      return {
+        format: field.format.getConverterFor('react'),
+        getValue: (column === '_source'
+          ? _.property('document')
+          : _.property(['document', column])
+        ),
+        index: columnIndex,
+        isFirst: columnIndex === 0,
+        isLast: columnIndex === columns.length - 1,
+        isMovable: true,
+        isRemovable: true,
+        label: column,
+        property: column,
+        type: field.type,
+      };
+    });
+  });
+
+  $scope.$watchCollection('rows', (rows = []) => {
+    $scope.documentTableProps.rows = rows.map((row) => ({
+      document: row.$$_flattened,
+      id: row._id,
+      indexPattern: $scope.indexPattern,
+      ...rowState[row._id],
+    }));
+  });
+
+}
+
+function bindActions(actions, apply) {
+  return _.mapValues(actions, (action) => (...args) => apply(() => action(...args)));
 }

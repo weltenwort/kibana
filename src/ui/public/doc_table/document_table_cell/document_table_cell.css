@@ -1,0 +1,32 @@
+.documentTable__cell {
+  border-top: 1px solid #d9d9d9;
+  line-height: 1.42857143;
+  padding: 8px;
+  vertical-align: top;
+}
+
+  .documentTable__cell--withoutWrap {
+    white-space: nowrap;
+  }
+
+  .documentTable__cell--preserveWrap {
+    white-space: pre-wrap;
+  }
+
+  .documentTable__cell--withWordBreak {
+    word-break: break-all;
+    word-break: break-word;
+  }
+
+  .documentTable__cell--header {
+    border-top: 0;
+    line-height: 1.42857143;
+    padding: 8px;
+    white-space: nowrap;
+  }
+
+  .documentTable__cell--expandToggle {
+    padding-left: 4px;
+    padding-right: 4px;
+    width: 2.3em;
+  }

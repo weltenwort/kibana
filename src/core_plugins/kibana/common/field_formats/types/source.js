@@ -1,4 +1,6 @@
 import _ from 'lodash';
+import React from 'react';
+
 import { noWhiteSpace } from '../../utils/no_white_space';
 import { toJson } from '../../utils/aggressive_parse';
 import { FieldFormat } from '../../../../../ui/field_formats/field_format';
@@ -45,5 +47,24 @@ SourceFormat.prototype._convert = {
     }, []);
 
     return template({ defPairs: highlightPairs.concat(sourcePairs) });
-  }
+  },
+  react: (source) => {
+    const keys = Object.keys(source);
+
+    return (
+      <span className="formattedValue formattedSource">
+        <span className="formattedSource__prefix">{keys.length} fields</span>
+        <ul className="formattedSource__keys">
+          {keys.map((key) => (
+            <li
+              className="formattedSource__key"
+              key={key}
+            >
+              {key}
+            </li>
+          ))}
+        </ul>
+      </span>
+    );
+  },
 };

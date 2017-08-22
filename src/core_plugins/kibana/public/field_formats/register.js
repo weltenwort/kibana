@@ -8,6 +8,7 @@ import { NumberFormat } from '../../common/field_formats/types/number';
 import { PercentFormat } from '../../common/field_formats/types/percent';
 import { StringFormat } from '../../common/field_formats/types/string';
 import { SourceFormat } from '../../common/field_formats/types/source';
+import '../../common/field_formats/types/source.css';
 import { ColorFormat } from '../../common/field_formats/types/color';
 import { TruncateFormat } from '../../common/field_formats/types/truncate';
 import { BoolFormat } from '../../common/field_formats/types/boolean';

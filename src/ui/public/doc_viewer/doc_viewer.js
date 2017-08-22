@@ -1,9 +1,52 @@
+import angular from 'angular';
+import PropTypes from 'prop-types';
+import React from 'react';
 import $ from 'jquery';
+
 import { uiModules } from 'ui/modules';
 import { DocViewsRegistryProvider } from 'ui/registry/doc_views';
+import { KuiTab, KuiTabs } from 'ui_framework/components';
 
 import 'ui/render_directive';
 import 'ui/doc_viewer/doc_viewer.less';
+
+export class DocumentViewer extends React.Component {
+  state = {
+    documentViewRegistry: null,
+    currentDocumentView: null,
+  }
+
+  componentDidMount() {
+    this.injector.invoke((Private) => {
+      this.setState({
+        documentViewRegistry: Private(DocViewsRegistryProvider),
+      });
+    });
+  }
+
+  render() {
+    const { documentViewRegistry } = this.state;
+
+    return (
+      <div
+        className="documentViewer"
+        ref={(element) => { this.injector = angular.element(element).injector(); }}
+      >
+        <KuiTabs>
+          { documentViewRegistry
+            ? documentViewRegistry.inOrder.map((documentView) => (
+              <KuiTab>
+                {documentView.title}
+              </KuiTab>
+            ))
+            : null
+          }
+        </KuiTabs>
+      </div>
+    );
+  }
+}
+
 
 uiModules.get('kibana')
 .directive('docViewer', function (config, Private) {

@@ -1,4 +1,6 @@
 import _ from 'lodash';
+import React from 'react';
+
 import { asPrettyString } from '../../core_plugins/kibana/common/utils/as_pretty_string';
 import { getHighlightHtml } from '../../core_plugins/kibana/common/highlight/highlight_html';
 
@@ -37,7 +39,11 @@ const types = {
       // format a list of values. In text contexts we just use JSON encoding
       return JSON.stringify(value.map(recurse));
     };
-  }
+  },
+
+  react: (format, convert) => (value) => {
+    return convert.call(format, value);
+  },
 };
 
 function fallbackText(value) {
@@ -54,12 +60,17 @@ function fallbackHtml(value, field, hit) {
   }
 }
 
+function fallbackReact(value) {
+  return _.escape(this.convert(value, 'text'));
+}
+
 export function contentTypesSetup(format) {
   const src = format._convert || {};
   const converters = format._convert = {};
 
   converters.text = types.text(format, src.text || fallbackText);
   converters.html = types.html(format, src.html || fallbackHtml);
+  converters.react = types.react(format, src.react || fallbackReact);
 
   return format._convert;
 }
