@@ -5,3 +5,4 @@
  */
 
 export { Toolbar } from './toolbar';
+export { LocalEuiFlexGroup } from './flex';
