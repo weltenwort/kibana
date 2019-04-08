@@ -38,32 +38,14 @@ export const LogViewConfiguration = createContainer(useLogViewConfiguration);
  * constants
  */
 
-export const availableTextScales: TextScale[] = ['large', 'medium', 'small'];
+export const availableTextScales: TextScale[] = ['small', 'medium', 'large'];
 
 export const availableIntervalSizes = [
   {
-    label: i18n.translate('xpack.infra.mapLogs.oneYearLabel', {
-      defaultMessage: '1 Year',
+    label: i18n.translate('xpack.infra.mapLogs.oneMinuteLabel', {
+      defaultMessage: '1 Minute',
     }),
-    intervalSize: 1000 * 60 * 60 * 24 * 365,
-  },
-  {
-    label: i18n.translate('xpack.infra.mapLogs.oneMonthLabel', {
-      defaultMessage: '1 Month',
-    }),
-    intervalSize: 1000 * 60 * 60 * 24 * 30,
-  },
-  {
-    label: i18n.translate('xpack.infra.mapLogs.oneWeekLabel', {
-      defaultMessage: '1 Week',
-    }),
-    intervalSize: 1000 * 60 * 60 * 24 * 7,
-  },
-  {
-    label: i18n.translate('xpack.infra.mapLogs.oneDayLabel', {
-      defaultMessage: '1 Day',
-    }),
-    intervalSize: 1000 * 60 * 60 * 24,
+    intervalSize: 1000 * 60,
   },
   {
     label: i18n.translate('xpack.infra.mapLogs.oneHourLabel', {
@@ -72,9 +54,27 @@ export const availableIntervalSizes = [
     intervalSize: 1000 * 60 * 60,
   },
   {
-    label: i18n.translate('xpack.infra.mapLogs.oneMinuteLabel', {
-      defaultMessage: '1 Minute',
+    label: i18n.translate('xpack.infra.mapLogs.oneDayLabel', {
+      defaultMessage: '1 Day',
     }),
-    intervalSize: 1000 * 60,
+    intervalSize: 1000 * 60 * 60 * 24,
+  },
+  {
+    label: i18n.translate('xpack.infra.mapLogs.oneWeekLabel', {
+      defaultMessage: '1 Week',
+    }),
+    intervalSize: 1000 * 60 * 60 * 24 * 7,
+  },
+  {
+    label: i18n.translate('xpack.infra.mapLogs.oneMonthLabel', {
+      defaultMessage: '1 Month',
+    }),
+    intervalSize: 1000 * 60 * 60 * 24 * 30,
+  },
+  {
+    label: i18n.translate('xpack.infra.mapLogs.oneYearLabel', {
+      defaultMessage: '1 Year',
+    }),
+    intervalSize: 1000 * 60 * 60 * 24 * 365,
   },
 ];

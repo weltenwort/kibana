@@ -4,27 +4,47 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-import { EuiFormRow, EuiRadioGroup } from '@elastic/eui';
-import { FormattedMessage } from '@kbn/i18n/react';
-import * as React from 'react';
+import { EuiFormRow, EuiButtonGroup } from '@elastic/eui';
+import { FormattedMessage, injectI18n, InjectedIntl } from '@kbn/i18n/react';
+import React, { useCallback, useMemo } from 'react';
 
 import { isTextScale, TextScale } from '../../../common/log_text_scale';
 
 interface LogTextScaleControlsProps {
   availableTextScales: TextScale[];
-  textScale: TextScale;
+  intl: InjectedIntl;
   setTextScale: (scale: TextScale) => any;
+  textScale: TextScale;
 }
 
-export class LogTextScaleControls extends React.PureComponent<LogTextScaleControlsProps> {
-  public setTextScale = (textScale: string) => {
-    if (isTextScale(textScale)) {
-      this.props.setTextScale(textScale);
-    }
-  };
+export const LogTextScaleControls = injectI18n(
+  ({ availableTextScales, intl, setTextScale, textScale }: LogTextScaleControlsProps) => {
+    const changeTextScale = useCallback(
+      (newTextScale: string) => {
+        if (isTextScale(newTextScale)) {
+          setTextScale(newTextScale);
+        }
+      },
+      [setTextScale]
+    );
 
-  public render() {
-    const { availableTextScales, textScale } = this.props;
+    const buttons = useMemo(
+      () =>
+        availableTextScales.map((availableTextScale: TextScale) => ({
+          id: availableTextScale.toString(),
+          label: intl.formatMessage(
+            {
+              id: 'xpack.infra.logs.customizeLogs.textSizeRadioGroup',
+              defaultMessage:
+                '{textScale, select, small {Small} medium {Medium} large {Large} other {{textScale}}}',
+            },
+            {
+              textScale: availableTextScale,
+            }
+          ),
+        })),
+      [availableTextScales, intl]
+    );
 
     return (
       <EuiFormRow
@@ -35,28 +55,8 @@ export class LogTextScaleControls extends React.PureComponent<LogTextScaleContro
           />
         }
       >
-        <EuiRadioGroup
-          options={availableTextScales.map((availableTextScale: TextScale) => ({
-            id: availableTextScale.toString(),
-            label: (
-              <FormattedMessage
-                id="xpack.infra.logs.customizeLogs.textSizeRadioGroup"
-                defaultMessage="{textScale, select,
-                  small {Small}
-                  medium {Medium}
-                  large {Large}
-                  other {{textScale}}
-                }"
-                values={{
-                  textScale: availableTextScale,
-                }}
-              />
-            ),
-          }))}
-          idSelected={textScale}
-          onChange={this.setTextScale}
-        />
+        <EuiButtonGroup onChange={changeTextScale} options={buttons} idSelected={textScale} />
       </EuiFormRow>
     );
   }
-}
+);

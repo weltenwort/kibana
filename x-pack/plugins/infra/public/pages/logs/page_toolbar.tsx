@@ -71,16 +71,16 @@ export const LogsToolbar = injectI18n(({ intl }) => {
         </EuiFlexItem>
         <EuiFlexItem grow={false}>
           <LogCustomizationMenu>
-            <LogMinimapScaleControls
-              availableIntervalSizes={availableIntervalSizes}
-              setIntervalSize={setIntervalSize}
-              intervalSize={intervalSize}
-            />
             <LogTextWrapControls wrap={textWrap} setTextWrap={setTextWrap} />
             <LogTextScaleControls
               availableTextScales={availableTextScales}
               textScale={textScale}
               setTextScale={setTextScale}
+            />
+            <LogMinimapScaleControls
+              availableIntervalSizes={availableIntervalSizes}
+              setIntervalSize={setIntervalSize}
+              intervalSize={intervalSize}
             />
           </LogCustomizationMenu>
         </EuiFlexItem>
