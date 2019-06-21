@@ -612,6 +612,50 @@ export namespace FlyoutItemQuery {
   };
 }
 
+export namespace LogEntriesAround {
+  export type Variables = {
+    sourceId?: string | null;
+    timeKey: InfraTimeKeyInput;
+    countBefore?: number | null;
+    countAfter?: number | null;
+    filterQuery?: string | null;
+  };
+
+  export type Query = {
+    __typename?: 'Query';
+
+    source: Source;
+  };
+
+  export type Source = {
+    __typename?: 'InfraSource';
+
+    id: string;
+
+    logEntriesAround: LogEntriesAround;
+  };
+
+  export type LogEntriesAround = {
+    __typename?: 'InfraLogEntryInterval';
+
+    start?: Start | null;
+
+    end?: End | null;
+
+    hasMoreBefore: boolean;
+
+    hasMoreAfter: boolean;
+
+    entries: Entries[];
+  };
+
+  export type Start = InfraTimeKeyFields.Fragment;
+
+  export type End = InfraTimeKeyFields.Fragment;
+
+  export type Entries = InfraLogEntryFields.Fragment;
+}
+
 export namespace LogSummary {
   export type Variables = {
     sourceId?: string | null;

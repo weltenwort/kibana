@@ -29,6 +29,7 @@ import { Source } from '../../containers/source';
 
 import { LogsToolbar } from './page_toolbar';
 import { SourceConfigurationFlyoutState } from '../../components/source_configuration';
+import { WithLogEntriesAround } from '../../containers/logs/log_entries';
 
 export const LogsPageLogsContent: React.FunctionComponent = () => {
   const { derivedIndexPattern, source, sourceId, version } = useContext(Source.Context);
@@ -77,27 +78,19 @@ export const LogsPageLogsContent: React.FunctionComponent = () => {
       <PageContent key={`${sourceId}-${version}`}>
         <WithLogPosition>
           {({ isAutoReloading, jumpToTargetPosition, reportVisiblePositions, targetPosition }) => (
-            <WithStreamItems initializeOnMount={!isAutoReloading}>
-              {({
-                hasMoreAfterEnd,
-                hasMoreBeforeStart,
-                isLoadingMore,
-                isReloading,
-                items,
-                lastLoadedTime,
-                loadNewerEntries,
-              }) => (
+            <WithLogEntriesAround>
+              {({ isLoading: isLoadingEntries, items }) => (
                 <ScrollableLogTextStreamView
                   columnConfigurations={(source && source.configuration.logColumns) || []}
-                  hasMoreAfterEnd={hasMoreAfterEnd}
-                  hasMoreBeforeStart={hasMoreBeforeStart}
-                  isLoadingMore={isLoadingMore}
-                  isReloading={isReloading}
+                  hasMoreAfterEnd={true}
+                  hasMoreBeforeStart={true}
+                  isLoadingMore={false}
+                  isReloading={isLoadingEntries}
                   isStreaming={isAutoReloading}
                   items={items}
                   jumpToTarget={jumpToTargetPosition}
-                  lastLoadedTime={lastLoadedTime}
-                  loadNewerItems={loadNewerEntries}
+                  lastLoadedTime={null}
+                  loadNewerItems={() => undefined}
                   reportVisibleInterval={reportVisiblePositions}
                   scale={textScale}
                   showColumnConfiguration={showLogsConfiguration}
@@ -108,7 +101,39 @@ export const LogsPageLogsContent: React.FunctionComponent = () => {
                   highlightedItem={surroundingLogsId ? surroundingLogsId : null}
                 />
               )}
-            </WithStreamItems>
+            </WithLogEntriesAround>
+            // <WithStreamItems initializeOnMount={!isAutoReloading}>
+            //   {({
+            //     hasMoreAfterEnd,
+            //     hasMoreBeforeStart,
+            //     isLoadingMore,
+            //     isReloading,
+            //     items,
+            //     lastLoadedTime,
+            //     loadNewerEntries,
+            //   }) => (
+            //     <ScrollableLogTextStreamView
+            //       columnConfigurations={(source && source.configuration.logColumns) || []}
+            //       hasMoreAfterEnd={hasMoreAfterEnd}
+            //       hasMoreBeforeStart={hasMoreBeforeStart}
+            //       isLoadingMore={isLoadingMore}
+            //       isReloading={isReloading}
+            //       isStreaming={isAutoReloading}
+            //       items={items}
+            //       jumpToTarget={jumpToTargetPosition}
+            //       lastLoadedTime={lastLoadedTime}
+            //       loadNewerItems={loadNewerEntries}
+            //       reportVisibleInterval={reportVisiblePositions}
+            //       scale={textScale}
+            //       showColumnConfiguration={showLogsConfiguration}
+            //       target={targetPosition}
+            //       wrap={textWrap}
+            //       setFlyoutItem={setFlyoutId}
+            //       setFlyoutVisibility={setFlyoutVisibility}
+            //       highlightedItem={surroundingLogsId ? surroundingLogsId : null}
+            //     />
+            //   )}
+            // </WithStreamItems>
           )}
         </WithLogPosition>
         <AutoSizer content bounds detectAnyWindowResize="height">
