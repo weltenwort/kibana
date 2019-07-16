@@ -45,6 +45,11 @@ export type InfraSourceLogSummaryBetweenResolver = ChildResolverOf<
   QuerySourceResolver
 >;
 
+export type InfraSourceLogSummaryHighlightsBetweenResolver = ChildResolverOf<
+  InfraResolverOf<InfraSourceResolvers.LogSummaryHighlightsBetweenResolver>,
+  QuerySourceResolver
+>;
+
 export type InfraSourceLogItem = ChildResolverOf<
   InfraResolverOf<InfraSourceResolvers.LogItemResolver>,
   QuerySourceResolver
@@ -58,6 +63,7 @@ export const createLogEntriesResolvers = (libs: {
     logEntriesBetween: InfraSourceLogEntriesBetweenResolver;
     logEntryHighlights: InfraSourceLogEntryHighlightsResolver;
     logSummaryBetween: InfraSourceLogSummaryBetweenResolver;
+    logSummaryHighlightsBetween: InfraSourceLogSummaryHighlightsBetweenResolver;
     logItem: InfraSourceLogItem;
   };
   InfraLogEntryColumn: {
@@ -151,6 +157,23 @@ export const createLogEntriesResolvers = (libs: {
         args.start,
         args.end,
         args.bucketSize,
+        parseFilterQuery(args.filterQuery)
+      );
+
+      return {
+        start: buckets.length > 0 ? buckets[0].start : null,
+        end: buckets.length > 0 ? buckets[buckets.length - 1].end : null,
+        buckets,
+      };
+    },
+    async logSummaryHighlightsBetween(source, args, { req }) {
+      const buckets = await libs.logEntries.getLogSummaryHighlightBucketsBetween(
+        req,
+        source.id,
+        args.start,
+        args.end,
+        args.bucketSize,
+        args.highlightQueries.map(parseFilterQuery),
         parseFilterQuery(args.filterQuery)
       );
 
