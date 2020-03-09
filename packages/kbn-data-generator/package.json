@@ -1,0 +1,29 @@
+{
+  "name": "@kbn/data-generator",
+  "main": "./target/out/index.js",
+  "types": "./target/types/index.d.ts",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "private": true,
+  "bin": {
+    "kbn-data-generator": "bin/kbn-data-generator"
+  },
+  "scripts": {
+    "build": "tsc",
+    "kbn:bootstrap": "yarn build",
+    "kbn:watch": "tsc --watch --pretty",
+    "test": "jest"
+  },
+  "devDependencies": {
+    "@types/jest": "^25.1.4",
+    "jest": "^25.2.3",
+    "ts-jest": "^25.2.1",
+    "typescript": "^3.7.2"
+  },
+  "dependencies": {
+    "commander": "^4.1.1",
+    "io-ts": "^2.0.5"
+  },
+  "peerDependencies": {
+  }
+}
