@@ -17,4 +17,7 @@
  * under the License.
  */
 
-export * from './codec';
+export * from './mappings';
+export * from './property';
+export * from './scenario';
+export * from './template';

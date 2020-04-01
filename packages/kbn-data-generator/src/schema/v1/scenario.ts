@@ -17,8 +17,14 @@
  * under the License.
  */
 
-export * from './common';
-export * from './date_property';
-export * from './keyword_property';
-export * from './mapping';
-export * from './property';
+import * as rt from 'io-ts';
+import { templateRT } from './template';
+
+export const scenarioRT = rt.type({
+  __kbn_data_generator: rt.type({
+    schema_version: rt.literal(1),
+  }),
+  templates: rt.record(rt.string, templateRT),
+});
+
+export type Scenario = rt.TypeOf<typeof scenarioRT>;

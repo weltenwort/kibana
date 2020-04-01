@@ -17,39 +17,11 @@
  * under the License.
  */
 
-import { generateMapping } from './generate_mapping';
+import * as rt from 'io-ts';
 
-describe('generateMapping function', () => {
-  test('handles an empty mapping', async () => {
-    const mapping = await generateMapping({
-      mappings: {
-        properties: {},
-      },
-    });
+import { datePropertyRT } from './date_property';
+import { keywordPropertyRT } from './keyword_property';
 
-    expect(mapping).toStrictEqual({
-      properties: {},
-    });
-  });
+export const propertyRT = rt.union([datePropertyRT, keywordPropertyRT]);
 
-  test('handles a simple mapping', async () => {
-    const mapping = await generateMapping({
-      mappings: {
-        properties: {
-          '@timestamp': {
-            __kbn_data_generator: {},
-            type: 'date',
-          },
-        },
-      },
-    });
-
-    expect(mapping).toStrictEqual({
-      properties: {
-        '@timestamp': {
-          type: 'date',
-        },
-      },
-    });
-  });
-});
+export type Property = rt.TypeOf<typeof propertyRT>;

@@ -17,9 +17,4 @@
  * under the License.
  */
 
-import * as rt from 'io-ts';
-import * as v1 from './v1';
-
-export const schemaRT = v1.schemaRT;
-
-export type Schema = rt.TypeOf<typeof schemaRT>;
+export * from './scenario';

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-import { fold } from 'fp-ts/lib/Either';
+import * as Either from 'fp-ts/lib/Either';
 import { identity } from 'fp-ts/lib/function';
 import { pipe } from 'fp-ts/lib/pipeable';
 import { Errors, Type } from 'io-ts';
@@ -31,8 +31,16 @@ export const throwErrors = (createError: ErrorFactory) => (errors: Errors) => {
   throw createError(failure(errors).join('\n'));
 };
 
+export const chainDecode = <A, O, I>(runtimeType: Type<A, O, I>, toError = Either.toError) =>
+  Either.chain((encodedValue: I) =>
+    pipe(
+      runtimeType.decode(encodedValue),
+      Either.mapLeft(errors => toError(failure(errors).join('\n')))
+    )
+  );
+
 export const decodeOrThrow = <A, O, I>(
   runtimeType: Type<A, O, I>,
   createError: ErrorFactory = createPlainError
 ) => (inputValue: I) =>
-  pipe(runtimeType.decode(inputValue), fold(throwErrors(createError), identity));
+  pipe(runtimeType.decode(inputValue), Either.fold(throwErrors(createError), identity));

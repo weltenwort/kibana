@@ -17,8 +17,11 @@
  * under the License.
  */
 
-export * from './common';
-export * from './date_property';
-export * from './keyword_property';
-export * from './mapping';
-export * from './property';
+import * as rt from 'io-ts';
+import { mappingsSchemaRT } from './mappings';
+
+export const templateRT = rt.type({
+  mappings: mappingsSchemaRT,
+});
+
+export type Template = rt.TypeOf<typeof templateRT>;

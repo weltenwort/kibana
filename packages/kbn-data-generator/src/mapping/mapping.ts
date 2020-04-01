@@ -18,10 +18,7 @@
  */
 
 import * as rt from 'io-ts';
-import { datePropertyRT } from './data_property';
-import { keywordPropertyRT } from './keyword_property';
-
-export const propertyRT = rt.union([datePropertyRT, keywordPropertyRT]);
+import { propertyRT } from './property';
 
 export const mappingRT = rt.strict({
   properties: rt.record(rt.string, propertyRT),

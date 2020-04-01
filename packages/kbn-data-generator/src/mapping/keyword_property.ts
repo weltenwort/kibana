@@ -26,3 +26,5 @@ export const keywordPropertyRT = rt.intersection([
     type: rt.literal('keyword'),
   }),
 ]);
+
+export type KeywordProperty = rt.TypeOf<typeof keywordPropertyRT>;

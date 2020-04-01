@@ -17,28 +17,20 @@
  * under the License.
  */
 
+import * as Either from 'fp-ts/lib/Either';
 import * as rt from 'io-ts';
-import { datePropertyRT, keywordPropertyRT } from '../../mapping';
+import { keywordPropertyRT, KeywordProperty } from '../../mapping';
 import { createPropertyGeneratorRT } from './property_generator';
-
-export const dateSchemaPropertyRT = rt.intersection([
-  createPropertyGeneratorRT(rt.void),
-  datePropertyRT,
-]);
 
 export const keywordPropertySchemaRT = rt.intersection([
   createPropertyGeneratorRT(rt.void),
   keywordPropertyRT,
 ]);
 
-export const propertySchemaRT = rt.union([dateSchemaPropertyRT, keywordPropertySchemaRT]);
+export type KeywordPropertySchema = rt.TypeOf<typeof keywordPropertySchemaRT>;
 
-export const mappingSchemaRT = rt.type({
-  properties: rt.record(rt.string, propertySchemaRT),
-});
-
-export const schemaRT = rt.type({
-  mappings: mappingSchemaRT,
-});
-
-export type Schema = rt.TypeOf<typeof schemaRT>;
+export const generateKeywordPropertyMapping = (
+  property: KeywordPropertySchema
+): Either.Either<Error, KeywordProperty> => {
+  return Either.right(keywordPropertyRT.encode(property));
+};

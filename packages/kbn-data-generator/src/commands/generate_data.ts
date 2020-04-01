@@ -17,12 +17,15 @@
  * under the License.
  */
 
-import * as rt from 'io-ts';
-import { commonPropertyRT } from './common';
+import { Command } from 'commander';
 
-export const datePropertyRT = rt.intersection([
-  commonPropertyRT,
-  rt.strict({
-    type: rt.literal('date'),
-  }),
-]);
+export const registerGenerateDataCommand = (parentCommand: Command) =>
+  parentCommand
+    .command('generate-data <scenario-file>')
+    .description('generate the data for the given scenario')
+    .action(async scenarioFile => {
+      // const mappings = await generateMappingsFromFile(scenarioFile)();
+      // Either.fold(printErrorLine, value => {
+      //   return printLine(JSON.stringify(value, null, 2));
+      // })(mappings);
+    });

@@ -17,8 +17,24 @@
  * under the License.
  */
 
-export * from './common';
-export * from './date_property';
-export * from './keyword_property';
-export * from './mapping';
-export * from './property';
+import * as Either from 'fp-ts/lib/Either';
+import { pipe } from 'fp-ts/lib/pipeable';
+import * as Record from 'fp-ts/lib/Record';
+import * as rt from 'io-ts';
+import { Mapping } from '../../mapping';
+import { propertySchemaRT, generatePropertyMapping } from './property';
+
+export const mappingsSchemaRT = rt.type({
+  properties: rt.record(rt.string, propertySchemaRT),
+});
+
+export type MappingsSchema = rt.TypeOf<typeof mappingsSchemaRT>;
+
+export const generateMappings = (schema: MappingsSchema): Either.Either<Error, Mapping> =>
+  pipe(
+    schema.properties,
+    Record.traverseWithIndex(Either.either)(generatePropertyMapping),
+    Either.map(properties => ({
+      properties,
+    }))
+  );

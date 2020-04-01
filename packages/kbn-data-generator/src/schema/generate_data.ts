@@ -17,8 +17,6 @@
  * under the License.
  */
 
-export * from './common';
-export * from './date_property';
-export * from './keyword_property';
-export * from './mapping';
-export * from './property';
+import { ScenarioSchema } from './scenario';
+
+export const generateData = (scenario: ScenarioSchema) => {};

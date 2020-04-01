@@ -17,8 +17,4 @@
  * under the License.
  */
 
-export * from './common';
-export * from './date_property';
-export * from './keyword_property';
-export * from './mapping';
-export * from './property';
+export type Visitor<Schema, State> = (state: State, schema: Schema) => State;

@@ -19,7 +19,7 @@
 
 import commander from 'commander';
 
-import { registerGenerateMappingCommand } from './commands';
+import { registerGenerateMappingsCommand } from './commands';
 
 export const run = async (argv: string[] = process.argv): Promise<void> => {
   if (argv.length < 3) {
@@ -35,4 +35,4 @@ mainCommand
   .description('Generate mappings and documents from a schema for use with Elasticsearch.')
   .version('0.1.0');
 
-registerGenerateMappingCommand(mainCommand);
+registerGenerateMappingsCommand(mainCommand);

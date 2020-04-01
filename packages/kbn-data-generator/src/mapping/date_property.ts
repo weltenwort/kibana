@@ -17,8 +17,14 @@
  * under the License.
  */
 
-export * from './common';
-export * from './date_property';
-export * from './keyword_property';
-export * from './mapping';
-export * from './property';
+import * as rt from 'io-ts';
+import { commonPropertyRT } from './common';
+
+export const datePropertyRT = rt.intersection([
+  commonPropertyRT,
+  rt.strict({
+    type: rt.literal('date'),
+  }),
+]);
+
+export type DateProperty = rt.TypeOf<typeof datePropertyRT>;

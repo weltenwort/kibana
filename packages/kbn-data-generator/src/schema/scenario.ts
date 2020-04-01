@@ -17,8 +17,18 @@
  * under the License.
  */
 
-export * from './common';
-export * from './date_property';
-export * from './keyword_property';
-export * from './mapping';
-export * from './property';
+import * as Either from 'fp-ts/lib/Either';
+import { pipe } from 'fp-ts/lib/pipeable';
+import * as rt from 'io-ts';
+import { chainDecode } from '../utils/runtime_types';
+import * as v1 from './v1';
+
+// this will become a union once additional schema versions are added
+export const scenarioRT = v1.scenarioRT;
+
+export type ScenarioSchema = rt.TypeOf<typeof scenarioRT>;
+
+export const parseScenarioString = (
+  serializedScenario: string
+): Either.Either<Error, ScenarioSchema> =>
+  pipe(Either.parseJSON(serializedScenario, Either.toError), chainDecode(scenarioRT));

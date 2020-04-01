@@ -17,8 +17,12 @@
  * under the License.
  */
 
-import { Schema, schemaRT } from '.';
-import { decodeOrThrow } from '../utils/runtime_types';
+export const printLine = (message: string) => {
+  // eslint-disable-next-line no-console
+  console.log(message);
+};
 
-export const parseSchemaString = (schema: string): Schema =>
-  decodeOrThrow(schemaRT)(JSON.parse(schema));
+export const printErrorLine = (error: Error) => {
+  // eslint-disable-next-line no-console
+  console.error(`${error.name}: ${error.message}`);
+};

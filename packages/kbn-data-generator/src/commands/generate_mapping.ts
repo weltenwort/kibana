@@ -18,45 +18,18 @@
  */
 
 import { Command } from 'commander';
-import fs from 'fs';
-import util from 'util';
-import { Mapping } from '../mapping';
-import { Schema, schemaRT } from '../schema';
-import { decodeOrThrow } from '../utils/runtime_types';
+import * as Either from 'fp-ts/lib/Either';
+import { printErrorLine, printLine } from '../utils/stdio';
+import { generateMappingsFromFile } from '../schema/generate_mappings';
 
-const readFile = util.promisify(fs.readFile);
-
-export interface GenerateMappingOptions {}
-
-export const registerGenerateMappingCommand = (parentCommand: Command) =>
+export const registerGenerateMappingsCommand = (parentCommand: Command) =>
   parentCommand
-    .command('generate-mapping <schema-file>')
-    .description('generate the index mapping for the given schema')
-    .action(async schemaFile => {
-      await generateMappingFromFile(schemaFile);
+    .command('generate-mapping <scenario-file>')
+    .description('generate the index mappings for the given scenario')
+    .action(async scenarioFile => {
+      const mappings = await generateMappingsFromFile(scenarioFile)();
+
+      Either.fold(printErrorLine, value => {
+        return printLine(JSON.stringify(value, null, 2));
+      })(mappings);
     });
-
-export const generateMappingFromFile = async (
-  schemaFilePath: string,
-  options?: GenerateMappingOptions
-) => {
-  const serializedSchema = await readFile(schemaFilePath, 'utf8');
-  return await generateMappingFromString(serializedSchema, options);
-};
-
-export const generateMappingFromString = async (
-  serializedSchema: string,
-  options?: GenerateMappingOptions
-): Promise<Mapping> => {
-  const decodedSchema = decodeOrThrow(schemaRT)(JSON.parse(serializedSchema));
-  return await generateMapping(decodedSchema, options);
-};
-
-export const generateMapping = async (
-  schema: Schema,
-  options?: GenerateMappingOptions
-): Promise<Mapping> => {
-  return {
-    properties: {},
-  };
-};
