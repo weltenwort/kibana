@@ -48,7 +48,7 @@ interface LogEntryRowProps {
   isActiveHighlight: boolean;
   isHighlighted: boolean;
   logEntry: LogEntry;
-  openFlyoutWithItem?: (id: string) => void;
+  openFlyoutWithItem?: (entry: LogEntry) => void;
   openViewLogInContext?: (entry: LogEntry) => void;
   scale: TextScale;
   wrap: boolean;
@@ -79,9 +79,9 @@ export const LogEntryRow = memo(
     const setItemIsHovered = useCallback(() => setIsHovered(true), []);
     const setItemIsNotHovered = useCallback(() => setIsHovered(false), []);
 
-    const openFlyout = useCallback(() => openFlyoutWithItem?.(logEntry.id), [
+    const openFlyout = useCallback(() => openFlyoutWithItem?.(logEntry), [
       openFlyoutWithItem,
-      logEntry.id,
+      logEntry,
     ]);
 
     const handleOpenViewLogInContext = useCallback(() => {

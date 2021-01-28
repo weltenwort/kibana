@@ -65,7 +65,7 @@ export const logEntrySearchStrategyProvider = ({
               map(
                 ({ configuration }): IEsSearchRequest => ({
                   params: createGetLogEntryQuery(
-                    configuration.logAlias,
+                    params.index,
                     params.logEntryId,
                     configuration.fields.timestamp,
                     configuration.fields.tiebreaker

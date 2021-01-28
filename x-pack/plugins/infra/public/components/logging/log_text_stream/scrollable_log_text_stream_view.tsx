@@ -51,9 +51,9 @@ interface ScrollableLogTextStreamViewProps {
   }) => any;
   loadNewerItems: () => void;
   reloadItems: () => void;
-  onOpenLogEntryFlyout?: (logEntryId?: string) => void;
+  onOpenLogEntryFlyout?: (index: string, logEntryId: string) => void;
   setContextEntry?: (entry: LogEntry) => void;
-  highlightedItem: string | null;
+  highlightedItem: { index: string; logEntryId: string } | null;
   currentHighlightKey: UniqueTimeKey | null;
   startDateExpression: string;
   endDateExpression: string;
@@ -255,7 +255,8 @@ export class ScrollableLogTextStreamView extends React.PureComponent<
                                           wrap={wrap}
                                           isHighlighted={
                                             highlightedItem
-                                              ? item.logEntry.id === highlightedItem
+                                              ? item.logEntry.id === highlightedItem.logEntryId &&
+                                                item.logEntry.index === highlightedItem.index
                                               : false
                                           }
                                         />
@@ -302,8 +303,8 @@ export class ScrollableLogTextStreamView extends React.PureComponent<
     );
   }
 
-  private handleOpenFlyout = (id: string) => {
-    this.props.onOpenLogEntryFlyout?.(id);
+  private handleOpenFlyout = (logEntry: LogEntry) => {
+    this.props.onOpenLogEntryFlyout?.(logEntry.index, logEntry.id);
   };
 
   private handleOpenViewLogInContext = (entry: LogEntry) => {

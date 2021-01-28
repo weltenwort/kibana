@@ -12,6 +12,7 @@ export const LOG_ENTRY_SEARCH_STRATEGY = 'infra-log-entry';
 
 export const logEntrySearchRequestParamsRT = rt.type({
   sourceId: rt.string,
+  index: rt.string,
   logEntryId: rt.string,
 });
 

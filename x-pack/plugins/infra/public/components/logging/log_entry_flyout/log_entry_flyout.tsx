@@ -26,13 +26,15 @@ import { LogEntryActionsMenu } from './log_entry_actions_menu';
 import { LogEntryFieldsTable } from './log_entry_fields_table';
 
 export interface LogEntryFlyoutProps {
+  index: string | null | undefined;
   logEntryId: string | null | undefined;
   onCloseFlyout: () => void;
-  onSetFieldFilter?: (filter: string, logEntryId: string, timeKey?: TimeKey) => void;
+  onSetFieldFilter?: (filter: string, index: string, logEntryId: string, timeKey?: TimeKey) => void;
   sourceId: string | null | undefined;
 }
 
 export const LogEntryFlyout = ({
+  index,
   logEntryId,
   onCloseFlyout,
   onSetFieldFilter,
@@ -47,15 +49,16 @@ export const LogEntryFlyout = ({
     logEntry,
     total: logEntryRequestTotal,
   } = useLogEntry({
-    sourceId,
+    index,
     logEntryId,
+    sourceId,
   });
 
   useEffect(() => {
     if (sourceId && logEntryId) {
       fetchLogEntry();
     }
-  }, [fetchLogEntry, sourceId, logEntryId]);
+  }, [fetchLogEntry, index, sourceId, logEntryId]);
 
   return (
     <EuiFlyout onClose={onCloseFlyout} size="m">

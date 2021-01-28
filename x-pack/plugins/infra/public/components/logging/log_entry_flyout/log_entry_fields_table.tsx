@@ -14,13 +14,18 @@ import { FieldValue } from '../log_text_stream/field_value';
 
 export const LogEntryFieldsTable: React.FC<{
   logEntry: LogEntry;
-  onSetFieldFilter?: (filter: string, logEntryId: string, timeKey?: TimeKey) => void;
+  onSetFieldFilter?: (filter: string, index: string, logEntryId: string, timeKey?: TimeKey) => void;
 }> = ({ logEntry, onSetFieldFilter }) => {
   const createSetFilterHandler = useMemo(
     () =>
       onSetFieldFilter
         ? (field: LogEntryField) => () => {
-            onSetFieldFilter?.(`${field.field}:"${field.value}"`, logEntry.id, logEntry.cursor);
+            onSetFieldFilter?.(
+              `${field.field}:"${field.value}"`,
+              logEntry.index,
+              logEntry.id,
+              logEntry.cursor
+            );
           }
         : undefined,
     [logEntry, onSetFieldFilter]

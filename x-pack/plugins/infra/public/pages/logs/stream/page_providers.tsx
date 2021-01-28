@@ -6,7 +6,7 @@
 
 import React, { useContext } from 'react';
 
-import { LogFlyout } from '../../../containers/logs/log_flyout';
+import { LogEntryFlyoutProvider } from '../../../containers/logs/log_flyout';
 import { LogViewConfiguration } from '../../../containers/logs/log_view_configuration';
 import { LogHighlightsState } from '../../../containers/logs/log_highlights/log_highlights';
 import { LogPositionState, WithLogPositionUrlState } from '../../../containers/logs/log_position';
@@ -113,7 +113,7 @@ export const LogsPageProviders: React.FunctionComponent = ({ children }) => {
 
   return (
     <LogViewConfiguration.Provider>
-      <LogFlyout.Provider>
+      <LogEntryFlyoutProvider>
         <LogPositionState.Provider>
           <WithLogPositionUrlState />
           <ViewLogInContextProvider>
@@ -124,7 +124,7 @@ export const LogsPageProviders: React.FunctionComponent = ({ children }) => {
             </LogFilterStateProvider>
           </ViewLogInContextProvider>
         </LogPositionState.Provider>
-      </LogFlyout.Provider>
+      </LogEntryFlyoutProvider>
     </LogViewConfiguration.Provider>
   );
 };

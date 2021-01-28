@@ -81,6 +81,7 @@ export const LogEntryRateResultsContent: React.FunctionComponent = () => {
 
   const {
     closeFlyout: closeLogEntryFlyout,
+    index: flyoutIndex,
     isFlyoutOpen: isLogEntryFlyoutOpen,
     logEntryId: flyoutLogEntryId,
   } = useLogEntryFlyoutContext();
@@ -94,16 +95,17 @@ export const LogEntryRateResultsContent: React.FunctionComponent = () => {
   }));
 
   const linkToLogStream = useCallback(
-    (filter: string, id: string, timeKey?: TimeKey) => {
+    (filter: string, index: string, id: string, timeKey?: TimeKey) => {
       const params = {
         logPosition: encode({
           end: moment(queryTimeRange.value.endTime).format('YYYY-MM-DDTHH:mm:ss.SSSZ'),
           position: timeKey as RisonValue,
           start: moment(queryTimeRange.value.startTime).format('YYYY-MM-DDTHH:mm:ss.SSSZ'),
           streamLive: false,
-        }),
-        flyoutOptions: encode({
-          surroundingLogsId: id,
+          highlightedLogEntry: {
+            index,
+            id,
+          },
         }),
         logFilter: encode({
           expression: filter,
@@ -307,6 +309,7 @@ export const LogEntryRateResultsContent: React.FunctionComponent = () => {
       </ResultsContentPage>
       {isLogEntryFlyoutOpen ? (
         <LogEntryFlyout
+          index={flyoutIndex}
           logEntryId={flyoutLogEntryId}
           onCloseFlyout={closeLogEntryFlyout}
           onSetFieldFilter={linkToLogStream}

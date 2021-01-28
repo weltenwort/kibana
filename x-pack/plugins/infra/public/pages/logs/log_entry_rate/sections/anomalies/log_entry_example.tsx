@@ -74,6 +74,7 @@ type Props = LogEntryExample & {
 
 export const LogEntryExampleMessage: React.FunctionComponent<Props> = ({
   id,
+  index,
   dataset,
   message,
   timestamp,
@@ -129,7 +130,7 @@ export const LogEntryExampleMessage: React.FunctionComponent<Props> = ({
       {
         label: VIEW_DETAILS_LABEL,
         onClick: () => {
-          openLogEntryFlyout(id);
+          openLogEntryFlyout(index, id);
         },
       },
       {
@@ -143,7 +144,7 @@ export const LogEntryExampleMessage: React.FunctionComponent<Props> = ({
         href: viewAnomalyInMachineLearningLinkProps.href,
       },
     ];
-  }, [id, openLogEntryFlyout, viewInStreamLinkProps, viewAnomalyInMachineLearningLinkProps]);
+  }, [id, index, openLogEntryFlyout, viewInStreamLinkProps, viewAnomalyInMachineLearningLinkProps]);
 
   return (
     <LogEntryRowWrapper

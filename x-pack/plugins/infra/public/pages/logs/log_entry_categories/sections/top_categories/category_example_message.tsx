@@ -33,13 +33,14 @@ export const exampleTimestampFormat = 'dateTime' as const;
 
 export const CategoryExampleMessage: React.FunctionComponent<{
   id: string;
+  index: string;
   dataset: string;
   message: string;
   timeRange: TimeRange;
   timestamp: number;
   tiebreaker: number;
   context: LogEntryContext;
-}> = ({ id, dataset, message, timestamp, timeRange, tiebreaker, context }) => {
+}> = ({ id, index, dataset, message, timestamp, timeRange, tiebreaker, context }) => {
   const trackMetric = useUiTracker({ app: 'infra_logs' });
   const [, { setContextEntry }] = useContext(ViewLogInContext.Context);
   // handle special cases for the dataset value

@@ -8,8 +8,14 @@ import React, { useContext, useMemo } from 'react';
 
 import { pickTimeKey } from '../../../../common/time';
 import { replaceStateKeyInQueryString, UrlStateContainer } from '../../../utils/url_state';
-import { LogPositionState, LogPositionStateParams } from './log_position_state';
+import {
+  HighlightState,
+  highlightStateRT,
+  LogPositionState,
+  LogPositionStateParams,
+} from './log_position_state';
 import { isValidDatemath, datemathToEpochMillis } from '../../../utils/datemath';
+import { decodeOrThrow } from '../../../../common/runtime_types';
 
 /**
  * Url State
@@ -19,15 +25,18 @@ export interface LogPositionUrlState {
   streamLive: boolean;
   start?: string;
   end?: string;
+  highlightedLogEntry?: HighlightState;
 }
 
 const ONE_HOUR = 3600000;
 
 export const WithLogPositionUrlState = () => {
   const {
+    highlightedLogEntry,
     visibleMidpoint,
     isStreaming,
     jumpToTargetPosition,
+    setHighlightedLogEntry,
     startLiveStreaming,
     stopLiveStreaming,
     startDateExpression,
@@ -41,8 +50,9 @@ export const WithLogPositionUrlState = () => {
       streamLive: isStreaming,
       start: startDateExpression,
       end: endDateExpression,
+      highlightedLogEntry,
     }),
-    [visibleMidpoint, isStreaming, startDateExpression, endDateExpression]
+    [visibleMidpoint, isStreaming, startDateExpression, endDateExpression, highlightedLogEntry]
   );
   return (
     <UrlStateContainer
@@ -69,6 +79,16 @@ export const WithLogPositionUrlState = () => {
           startLiveStreaming();
         } else if (typeof newUrlState.streamLive !== 'undefined' && !newUrlState.streamLive) {
           stopLiveStreaming();
+        }
+
+        if (newUrlState.highlightedLogEntry) {
+          try {
+            setHighlightedLogEntry(
+              decodeOrThrow(highlightStateRT)(newUrlState.highlightedLogEntry)
+            );
+          } catch {
+            // ignore
+          }
         }
       }}
       onInitialize={(initialUrlState: LogPositionUrlState | undefined) => {
@@ -110,6 +130,10 @@ export const WithLogPositionUrlState = () => {
           if (initialUrlState.streamLive) {
             startLiveStreaming();
           }
+
+          if (initialUrlState.highlightedLogEntry) {
+            setHighlightedLogEntry(initialUrlState.highlightedLogEntry);
+          }
         }
 
         initialize();
@@ -125,6 +149,7 @@ const mapToUrlState = (value: any): LogPositionUrlState | undefined =>
         streamLive: mapToStreamLiveUrlState(value.streamLive),
         start: mapToDate(value.start),
         end: mapToDate(value.end),
+        highlightedLogEntry: mapToHighlightState(value.highlightedLogEntry),
       }
     : undefined;
 
@@ -148,3 +173,11 @@ export const replaceLogPositionInQueryString = (time: number) =>
         start: new Date(time - ONE_HOUR).toISOString(),
         streamLive: false,
       });
+
+const mapToHighlightState = (value: unknown) => {
+  if (highlightStateRT.is(value)) {
+    return value;
+  } else {
+    return undefined;
+  }
+};

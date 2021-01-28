@@ -15,7 +15,6 @@ import { LogHighlightsMenu } from '../../../components/logging/log_highlights_me
 import { LogTextScaleControls } from '../../../components/logging/log_text_scale_controls';
 import { LogTextWrapControls } from '../../../components/logging/log_text_wrap_controls';
 import { LogFilterState } from '../../../containers/logs/log_filter';
-import { LogFlyout } from '../../../containers/logs/log_flyout';
 import { LogHighlightsState } from '../../../containers/logs/log_highlights/log_highlights';
 import { LogPositionState } from '../../../containers/logs/log_position';
 import { useLogSourceContext } from '../../../containers/logs/log_source';
@@ -32,7 +31,6 @@ export const LogsToolbar = () => {
     applyLogFilterQuery,
     setLogFilterQueryDraft,
   } = useContext(LogFilterState.Context);
-  const { setSurroundingLogsId } = useContext(LogFlyout.Context);
 
   const {
     setHighlightTerms,
@@ -45,6 +43,7 @@ export const LogsToolbar = () => {
   } = useContext(LogHighlightsState.Context);
   const {
     isStreaming,
+    setHighlightedLogEntry,
     startLiveStreaming,
     stopLiveStreaming,
     startDateExpression,
@@ -63,13 +62,13 @@ export const LogsToolbar = () => {
             isInvalid={!isFilterQueryDraftValid}
             onChange={(expression: Query) => {
               if (typeof expression.query === 'string') {
-                setSurroundingLogsId(null);
+                setHighlightedLogEntry(null);
                 setLogFilterQueryDraft(expression.query);
               }
             }}
             onSubmit={(expression: Query) => {
               if (typeof expression.query === 'string') {
-                setSurroundingLogsId(null);
+                setHighlightedLogEntry(null);
                 applyLogFilterQuery(expression.query);
               }
             }}

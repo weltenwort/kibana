@@ -19,22 +19,25 @@ import {
 
 export const useLogEntry = ({
   sourceId,
+  index,
   logEntryId,
 }: {
   sourceId: string | null | undefined;
+  index: string | null | undefined;
   logEntryId: string | null | undefined;
 }) => {
   const { search: fetchLogEntry, requests$: logEntrySearchRequests$ } = useDataSearch({
     getRequest: useCallback(() => {
-      return !!logEntryId && !!sourceId
-        ? {
-            request: {
-              params: logEntrySearchRequestParamsRT.encode({ sourceId, logEntryId }),
-            },
-            options: { strategy: LOG_ENTRY_SEARCH_STRATEGY },
-          }
-        : null;
-    }, [sourceId, logEntryId]),
+      if (sourceId == null || index == null || logEntryId == null) {
+        return null;
+      }
+      return {
+        request: {
+          params: logEntrySearchRequestParamsRT.encode({ sourceId, index, logEntryId }),
+        },
+        options: { strategy: LOG_ENTRY_SEARCH_STRATEGY },
+      };
+    }, [sourceId, index, logEntryId]),
     parseResponses: parseLogEntrySearchResponses,
   });
 

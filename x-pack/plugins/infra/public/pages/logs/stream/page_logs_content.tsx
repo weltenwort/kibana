@@ -14,7 +14,7 @@ import { PageContent } from '../../../components/page';
 import { LogFilterState } from '../../../containers/logs/log_filter';
 import {
   useLogEntryFlyoutContext,
-  WithFlyoutOptionsUrlState,
+  // WithFlyoutOptionsUrlState,
 } from '../../../containers/logs/log_flyout';
 import { LogHighlightsState } from '../../../containers/logs/log_highlights';
 import { LogPositionState } from '../../../containers/logs/log_position';
@@ -31,22 +31,23 @@ export const LogsPageLogsContent: React.FunctionComponent = () => {
   const { sourceConfiguration, sourceId } = useLogSourceContext();
   const { textScale, textWrap } = useContext(LogViewConfiguration.Context);
   const {
-    surroundingLogsId,
-    setSurroundingLogsId,
     closeFlyout: closeLogEntryFlyout,
-    openFlyout: openLogEntryFlyout,
+    index: flyoutIndex,
     isFlyoutOpen,
     logEntryId: flyoutLogEntryId,
+    openFlyout: openLogEntryFlyout,
   } = useLogEntryFlyoutContext();
   const { logSummaryHighlights } = useContext(LogHighlightsState.Context);
   const { applyLogFilterQuery } = useContext(LogFilterState.Context);
   const {
+    highlightedLogEntry,
     isStreaming,
     targetPosition,
     visibleMidpointTime,
     visibleTimeInterval,
     reportVisiblePositions,
     jumpToTargetPosition,
+    setHighlightedLogEntry,
     startLiveStreaming,
     stopLiveStreaming,
     startDateExpression,
@@ -57,25 +58,26 @@ export const LogsPageLogsContent: React.FunctionComponent = () => {
   const [, { setContextEntry }] = useContext(ViewLogInContext.Context);
 
   const setFilter = useCallback(
-    (filter, flyoutItemId, timeKey) => {
+    (filter, index, logEntryId, timeKey) => {
       applyLogFilterQuery(filter);
       if (timeKey) {
         jumpToTargetPosition(timeKey);
       }
-      setSurroundingLogsId(flyoutItemId);
+      setHighlightedLogEntry({ index, logEntryId });
       stopLiveStreaming();
     },
-    [applyLogFilterQuery, jumpToTargetPosition, setSurroundingLogsId, stopLiveStreaming]
+    [applyLogFilterQuery, jumpToTargetPosition, setHighlightedLogEntry, stopLiveStreaming]
   );
 
   return (
     <>
       <WithLogTextviewUrlState />
-      <WithFlyoutOptionsUrlState />
+      {/* <WithFlyoutOptionsUrlState /> */}
       <LogsToolbar />
       <PageViewLogInContext />
       {isFlyoutOpen ? (
         <LogEntryFlyout
+          index={flyoutIndex}
           logEntryId={flyoutLogEntryId}
           onCloseFlyout={closeLogEntryFlyout}
           onSetFieldFilter={setFilter}
@@ -115,7 +117,7 @@ export const LogsPageLogsContent: React.FunctionComponent = () => {
               wrap={textWrap}
               onOpenLogEntryFlyout={openLogEntryFlyout}
               setContextEntry={setContextEntry}
-              highlightedItem={surroundingLogsId ? surroundingLogsId : null}
+              highlightedItem={highlightedLogEntry ?? null}
               currentHighlightKey={currentHighlightKey}
               startDateExpression={startDateExpression}
               endDateExpression={endDateExpression}

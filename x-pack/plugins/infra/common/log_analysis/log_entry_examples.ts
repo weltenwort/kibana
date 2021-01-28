@@ -8,6 +8,7 @@ import * as rt from 'io-ts';
 
 export const logEntryExampleRT = rt.type({
   id: rt.string,
+  index: rt.string,
   dataset: rt.string,
   message: rt.string,
   timestamp: rt.number,

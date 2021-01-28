@@ -8,9 +8,9 @@ import React from 'react';
 import { LogAnalysisSetupFlyoutStateProvider } from '../../../components/logging/log_analysis_setup/setup_flyout';
 import { LogEntryCategoriesModuleProvider } from '../../../containers/logs/log_analysis/modules/log_entry_categories';
 import { LogEntryRateModuleProvider } from '../../../containers/logs/log_analysis/modules/log_entry_rate';
+import { LogEntryFlyoutProvider } from '../../../containers/logs/log_flyout';
 import { useLogSourceContext } from '../../../containers/logs/log_source';
 import { useActiveKibanaSpace } from '../../../hooks/use_kibana_space';
-import { LogFlyout } from '../../../containers/logs/log_flyout';
 
 export const LogEntryRatePageProviders: React.FunctionComponent = ({ children }) => {
   const { sourceId, sourceConfiguration } = useLogSourceContext();
@@ -24,7 +24,7 @@ export const LogEntryRatePageProviders: React.FunctionComponent = ({ children })
   }
 
   return (
-    <LogFlyout.Provider>
+    <LogEntryFlyoutProvider>
       <LogEntryRateModuleProvider
         indexPattern={sourceConfiguration?.configuration.logAlias ?? ''}
         sourceId={sourceId}
@@ -40,6 +40,6 @@ export const LogEntryRatePageProviders: React.FunctionComponent = ({ children })
           <LogAnalysisSetupFlyoutStateProvider>{children}</LogAnalysisSetupFlyoutStateProvider>
         </LogEntryCategoriesModuleProvider>
       </LogEntryRateModuleProvider>
-    </LogFlyout.Provider>
+    </LogEntryFlyoutProvider>
   );
 };

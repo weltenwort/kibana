@@ -4,6 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
+import * as rt from 'io-ts';
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import createContainer from 'constate';
 import useSetState from 'react-use/lib/useSetState';
@@ -29,7 +30,18 @@ interface VisiblePositions {
   pagesBeforeStart: number;
 }
 
+export const highlightStateRT = rt.union([
+  rt.type({
+    logEntryId: rt.string,
+    index: rt.string,
+  }),
+  rt.null,
+]);
+
+export type HighlightState = rt.TypeOf<typeof highlightStateRT>;
+
 export interface LogPositionStateParams {
+  highlightedLogEntry: HighlightState;
   isInitialized: boolean;
   targetPosition: TimeKeyOrNull;
   isStreaming: boolean;
@@ -51,6 +63,7 @@ export interface LogPositionCallbacks {
   jumpToTargetPosition: (pos: TimeKeyOrNull) => void;
   jumpToTargetPositionTime: (time: number) => void;
   reportVisiblePositions: (visPos: VisiblePositions) => void;
+  setHighlightedLogEntry: (highlightedLogEntry: HighlightState) => void;
   startLiveStreaming: () => void;
   stopLiveStreaming: () => void;
   updateDateRange: (newDateRage: Partial<DateRange>) => void;
@@ -110,6 +123,7 @@ export const useLogPositionState: () => LogPositionStateParams & LogPositionCall
     pagesBeforeStart: Infinity,
     pagesAfterEnd: Infinity,
   });
+  const [highlightedLogEntry, setHighlightedLogEntry] = useState<HighlightState>(null);
 
   // We group the `startDate` and `endDate` values in the same object to be able
   // to set both at the same time, saving a re-render
@@ -194,6 +208,7 @@ export const useLogPositionState: () => LogPositionStateParams & LogPositionCall
   }, [dateRange.endDateExpression, visiblePositions, setDateRange]);
 
   const state = {
+    highlightedLogEntry,
     isInitialized,
     targetPosition,
     isStreaming,
@@ -214,6 +229,7 @@ export const useLogPositionState: () => LogPositionStateParams & LogPositionCall
       [jumpToTargetPosition]
     ),
     reportVisiblePositions,
+    setHighlightedLogEntry,
     startLiveStreaming: useCallback(() => {
       setIsStreaming(true);
       jumpToTargetPosition(null);
