@@ -2711,6 +2711,10 @@
   version "0.0.0"
   uid ""
 
+"@kbn/test-data-generator@link:bazel-bin/packages/kbn-test-data-generator/npm_module":
+  version "0.0.0"
+  uid ""
+
 "@kbn/test-subj-selector@link:packages/kbn-test-subj-selector":
   version "0.0.0"
   uid ""

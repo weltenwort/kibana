@@ -1,0 +1,21 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "declaration": true,
+    "declarationMap": true,
+    "incremental": true,
+    "outDir": "target",
+    "rootDir": "src",
+    "sourceMap": true,
+    "sourceRoot": "../../../../packages/kbn-test-data-generator/src",
+    "stripInternal": true,
+    "types": [
+      "jest",
+      "node"
+    ]
+  },
+  "include": [
+    "types/joi.d.ts",
+    "src/**/*.ts"
+  ]
+}

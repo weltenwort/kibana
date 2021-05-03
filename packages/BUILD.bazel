@@ -19,6 +19,7 @@ filegroup(
       "//packages/kbn-logging:build",
       "//packages/kbn-std:build",
       "//packages/kbn-tinymath:build",
+      "//packages/kbn-test-data-generator:build",
       "//packages/kbn-utility-types:build",
       "//packages/kbn-utils:build",
   ],

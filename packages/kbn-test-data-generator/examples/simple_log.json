@@ -1,0 +1,16 @@
+{
+  "__kbn_data_generator": {
+    "schema_version": 1
+  },
+  "templates": {
+    "logs-simple-generated": {
+      "mappings": {
+        "properties": {
+          "@timestamp": {
+            "type": "date"
+          }
+        }
+      }
+    }
+  }
+}

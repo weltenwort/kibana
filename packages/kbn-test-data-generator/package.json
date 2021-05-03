@@ -1,0 +1,8 @@
+{
+  "name": "@kbn/test-data-generator",
+  "main": "./target/index.js",
+  "types": "./target/index.d.ts",
+  "version": "0.1.0",
+  "license": "SSPL-1.0 OR Elastic License 2.0",
+  "private": true
+}

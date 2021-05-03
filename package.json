@@ -138,6 +138,7 @@
     "@kbn/server-route-repository": "link:packages/kbn-server-route-repository",
     "@kbn/std": "link:bazel-bin/packages/kbn-std/npm_module",
     "@kbn/tinymath": "link:bazel-bin/packages/kbn-tinymath/npm_module",
+    "@kbn/test-data-generator": "link:bazel-bin/packages/kbn-test-data-generator/npm_module",
     "@kbn/ui-framework": "link:packages/kbn-ui-framework",
     "@kbn/ui-shared-deps": "link:packages/kbn-ui-shared-deps",
     "@kbn/utility-types": "link:bazel-bin/packages/kbn-utility-types/npm_module",
