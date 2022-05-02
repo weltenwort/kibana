@@ -20,7 +20,7 @@ import { RedirectWithQueryParams } from '../../utils/redirect_with_query_params'
 import { LogEntryCategoriesPage } from './log_entry_categories';
 import { LogEntryRatePage } from './log_entry_rate';
 import { LogsSettingsPage } from './settings';
-import { StreamPage } from './stream';
+import { LogStreamPage as StreamPage } from './new_stream';
 import { HeaderMenuPortal } from '../../../../observability/public';
 import { HeaderActionMenuContext } from '../../utils/header_action_menu_provider';
 import { useLinkProps } from '../../hooks/use_link_props';

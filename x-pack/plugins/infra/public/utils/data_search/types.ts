@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-import { Observable } from 'rxjs';
+import { Observable, OperatorFunction } from 'rxjs';
 import {
   IKibanaSearchRequest,
   IKibanaSearchResponse,
@@ -48,3 +48,8 @@ export interface ParsedDataSearchResponseDescriptor<
   response: ParsedKibanaSearchResponse<Response>;
   abortController: AbortController;
 }
+
+export type ParseResponsesOperator<RawResponse, Response> = OperatorFunction<
+  IKibanaSearchResponse<RawResponse>,
+  ParsedKibanaSearchResponse<Response>
+>;

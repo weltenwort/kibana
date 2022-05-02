@@ -5,6 +5,7 @@
  * 2.0.
  */
 
+import { inspect } from '@xstate/inspect';
 import { History } from 'history';
 import { CoreStart } from 'kibana/public';
 import React from 'react';
@@ -28,6 +29,11 @@ export const renderApp = (
   const storage = new Storage(window.localStorage);
 
   prepareMountElement(element, 'infraLogsPage');
+
+  inspect({
+    iframe: false,
+    url: 'https://stately.ai/viz?inspect',
+  });
 
   ReactDOM.render(
     <LogsApp
