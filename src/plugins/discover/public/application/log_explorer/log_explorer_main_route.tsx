@@ -37,7 +37,7 @@ import { getUrlTracker } from '../../kibana_services';
 const LogExplorerMainAppMemoized = memo(LogExplorerMainApp);
 
 interface DiscoverLandingParams {
-  id: string;
+  savedSearchId: string;
 }
 
 interface Props {
@@ -65,12 +65,12 @@ export function DiscoverLogExplorerRoute({ isDev }: Props) {
   const [hasESData, setHasESData] = useState(false);
   const [hasUserDataView, setHasUserDataView] = useState(false);
   const [showNoDataPage, setShowNoDataPage] = useState<boolean>(false);
-  const { id } = useParams<DiscoverLandingParams>();
+  const { savedSearchId } = useParams<DiscoverLandingParams>();
 
   useExecutionContext(core.executionContext, {
     type: 'application',
     page: 'app',
-    id: id || 'new',
+    id: savedSearchId || 'new',
   });
 
   useEffect(() => {
@@ -123,7 +123,7 @@ export function DiscoverLogExplorerRoute({ isDev }: Props) {
 
   const loadSavedSearch = useCallback(async () => {
     try {
-      const currentSavedSearch = await getSavedSearch(id, {
+      const currentSavedSearch = await getSavedSearch(savedSearchId, {
         search: services.data.search,
         savedObjectsClient: core.savedObjects.client,
         spaces: services.spaces,
@@ -162,7 +162,7 @@ export function DiscoverLogExplorerRoute({ isDev }: Props) {
             search: '/',
             'index-pattern': {
               app: 'management',
-              path: `kibana/objects/savedSearches/${id}`,
+              path: `kibana/objects/savedSearches/${savedSearchId}`,
             },
           },
           toastNotifications,
@@ -174,7 +174,7 @@ export function DiscoverLogExplorerRoute({ isDev }: Props) {
       }
     }
   }, [
-    id,
+    savedSearchId,
     services.data.search,
     services.spaces,
     core.savedObjects.client,

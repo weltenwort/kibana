@@ -15,39 +15,33 @@ import {
 import { DataView } from '@kbn/data-views-plugin/public';
 import { FormattedMessage } from '@kbn/i18n-react';
 import React, { memo, useCallback, useMemo } from 'react';
-import {
-  DOC_HIDE_TIME_COLUMN_SETTING,
-  SAMPLE_SIZE_SETTING,
-  SEARCH_FIELDS_FROM_SOURCE,
-} from '../../../../../common';
+import { DataTableRecord } from '../../../../types';
+import { DOC_HIDE_TIME_COLUMN_SETTING, SAMPLE_SIZE_SETTING } from '../../../../../common';
 import { DiscoverGrid } from '../../../../components/discover_grid/discover_grid';
 import { SortPairArr } from '../../../../components/doc_table/utils/get_sort';
 import { useColumns } from '../../../../hooks/use_data_grid_columns';
 import { useDiscoverServices } from '../../../../hooks/use_discover_services';
 import { DocViewFilterFn } from '../../../../services/doc_views/doc_views_types';
 import { SavedSearch } from '../../../../services/saved_searches';
-import { DataTableRecord } from '../../../../types';
-import { useDataState } from '../../../main/hooks/use_data_state';
-import { DataDocuments$, DataDocumentsMsg } from '../../../main/hooks/use_saved_search';
 import { AppState, GetStateReturn } from '../../../main/services/discover_state';
 import { FetchStatus } from '../../../types';
 
 const DataGridMemoized = React.memo(DiscoverGrid);
 
 function LogExplorerComponent({
-  documents$,
+  // documents$,
   expandedDoc,
-  indexPattern,
+  dataView,
   onAddFilter,
   savedSearch,
   setExpandedDoc,
   state,
   stateContainer,
 }: {
-  documents$: DataDocuments$;
+  // documents$: DataDocuments$;
   expandedDoc?: DataTableRecord;
-  indexPattern: DataView;
-  navigateTo: (url: string) => void;
+  dataView: DataView;
+  // navigateTo: (url: string) => void;
   onAddFilter: DocViewFilterFn;
   savedSearch: SavedSearch;
   setExpandedDoc: (doc?: DataTableRecord) => void;
@@ -55,18 +49,21 @@ function LogExplorerComponent({
   stateContainer: GetStateReturn;
 }) {
   const { capabilities, indexPatterns, uiSettings } = useDiscoverServices();
-  const useNewFieldsApi = useMemo(() => !uiSettings.get(SEARCH_FIELDS_FROM_SOURCE), [uiSettings]);
+  const useNewFieldsApi = true;
   const sampleSize = useMemo(() => uiSettings.get(SAMPLE_SIZE_SETTING), [uiSettings]);
 
-  const documentState: DataDocumentsMsg = useDataState(documents$);
-  const isLoading = documentState.fetchStatus === FetchStatus.LOADING;
+  // const documentState: DataDocumentsMsg = useDataState(documents$);
+  // const isLoading = documentState.fetchStatus === FetchStatus.LOADING;
 
-  const rows = useMemo(() => documentState.result || [], [documentState.result]);
+  // const rows = useMemo(() => documentState.result || [], [documentState.result]);
+
+  const documentState = { fetchStatus: 'uninitialized', result: [] };
+  const rows: DataTableRecord[] = [];
 
   const { columns, onAddColumn, onRemoveColumn, onSetColumns } = useColumns({
     capabilities,
     config: uiSettings,
-    indexPattern,
+    indexPattern: dataView,
     indexPatterns,
     setAppState: stateContainer.setAppState,
     state,
@@ -88,6 +85,7 @@ function LogExplorerComponent({
 
   const onSort = useCallback(
     (sort: string[][]) => {
+      console.log(sort);
       stateContainer.setAppState({ sort });
     },
     [stateContainer]
@@ -101,8 +99,8 @@ function LogExplorerComponent({
   );
 
   const showTimeCol = useMemo(
-    () => !uiSettings.get(DOC_HIDE_TIME_COLUMN_SETTING, false) && !!indexPattern.timeFieldName,
-    [uiSettings, indexPattern.timeFieldName]
+    () => !uiSettings.get(DOC_HIDE_TIME_COLUMN_SETTING, false) && !!dataView.timeFieldName,
+    [uiSettings, dataView.timeFieldName]
   );
 
   if (
@@ -132,8 +130,8 @@ function LogExplorerComponent({
           ariaLabelledBy="documentsAriaLabel"
           columns={columns}
           expandedDoc={expandedDoc}
-          indexPattern={indexPattern}
-          isLoading={isLoading}
+          indexPattern={dataView}
+          isLoading={false}
           rows={rows}
           sort={(state.sort as SortPairArr[]) || []}
           sampleSize={sampleSize}

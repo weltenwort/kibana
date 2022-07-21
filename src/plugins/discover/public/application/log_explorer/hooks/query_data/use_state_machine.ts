@@ -6,18 +6,29 @@
  * Side Public License, v 1.
  */
 
-import { TimefilterContract } from '@kbn/data-plugin/public';
+import { ISearchSource, QueryStart } from '@kbn/data-plugin/public';
+import { DataView } from '@kbn/data-views-plugin/public';
 import { useInterpret } from '@xstate/react';
 import { ignoreElements, timer } from 'rxjs';
 import { assign } from 'xstate';
 import { dataAccessStateMachine } from '../../state_machines';
+import { loadAround } from '../../state_machines/services/load_around';
 
-export const useDataAccessStateMachine = ({ timefilter }: { timefilter: TimefilterContract }) => {
+export const useDataAccessStateMachine = ({
+  dataView,
+  query,
+  searchSource,
+}: {
+  dataView: DataView;
+  query: QueryStart;
+  searchSource: ISearchSource;
+}) => {
   const dataAccessService = useInterpret(
     () => {
-      const initialTimeRange = timefilter.getAbsoluteTime();
+      const initialTimeRange = query.timefilter.timefilter.getAbsoluteTime();
 
       return dataAccessStateMachine.withContext({
+        dataView,
         timeRange: initialTimeRange,
         position: {
           timestamp: initialTimeRange.from,
@@ -44,7 +55,7 @@ export const useDataAccessStateMachine = ({ timefilter }: { timefilter: Timefilt
         })),
       },
       services: {
-        loadAround: createDummyService(),
+        loadAround: loadAround({ dataView, query, searchSource }),
       },
       devTools: true,
     }

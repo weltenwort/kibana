@@ -47,7 +47,9 @@ export function LogExplorerMainApp(props: DiscoverMainProps) {
   );
 
   const dataAccessService = useDataAccessStateMachine({
-    timefilter: data.query.timefilter.timefilter,
+    dataView: savedSearch.searchSource.getField('index')!, // TODO: unsafe, but the discover state does it too
+    query: data.query,
+    searchSource: savedSearch.searchSource,
   });
 
   // TODO: We will want to rewrite the bulk of the query fetching logic in useDiscoverState > useSavedSearch (which returns data$)
@@ -105,6 +107,7 @@ export function LogExplorerMainApp(props: DiscoverMainProps) {
 
   return (
     <LogExplorerLayoutMemoized
+      dataAccessService={dataAccessService}
       indexPattern={indexPattern}
       indexPatternList={indexPatternList}
       inspectorAdapters={inspectorAdapters}

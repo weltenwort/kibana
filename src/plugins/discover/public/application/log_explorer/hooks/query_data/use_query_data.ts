@@ -17,7 +17,7 @@ import { validateTimeRange } from '../../../main/utils/validate_time_range';
 import { Chart } from '../../../main/components/chart/point_series';
 import { useSingleton } from '../../../main/hooks/use_singleton';
 import { FetchStatus } from '../../../types';
-import { fetchAll } from '../../../main/utils/fetch_all';
+// import { fetchAll } from '../../../main/utils/fetch_all';
 import { useBehaviorSubject } from '../../../main/hooks/use_behavior_subject';
 import { sendResetMsg } from '../../../main/hooks/use_saved_search_messages';
 import { getFetch$ } from '../../../main/utils/get_fetch_observable';
@@ -183,17 +183,17 @@ export const useQueryData = ({
       abortController = new AbortController();
       const autoRefreshDone = refs.current.autoRefreshDone;
 
-      await fetchAll(dataSubjects, searchSource, val === 'reset', {
-        abortController,
-        appStateContainer: stateContainer.appStateContainer,
-        data,
-        initialFetchStatus,
-        inspectorAdapters,
-        savedSearch,
-        searchSessionId: searchSessionManager.getNextSearchSessionId(),
-        services,
-        useNewFieldsApi,
-      });
+      // await fetchAll(dataSubjects, searchSource, val === 'reset', {
+      //   abortController,
+      //   appStateContainer: stateContainer.appStateContainer,
+      //   data,
+      //   initialFetchStatus,
+      //   inspectorAdapters,
+      //   savedSearch,
+      //   searchSessionId: searchSessionManager.getNextSearchSessionId(),
+      //   services,
+      //   useNewFieldsApi,
+      // });
 
       // If the autoRefreshCallback is still the same as when we started i.e. there was no newer call
       // replacing this current one, call it to make sure we tell that the auto refresh is done

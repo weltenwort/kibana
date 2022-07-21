@@ -5,8 +5,6 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-import '../../../main/components/layout/discover_layout.scss';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   EuiButtonIcon,
   EuiFlexGroup,
@@ -17,31 +15,40 @@ import {
   EuiPageContent,
   EuiSpacer,
 } from '@elastic/eui';
-import { i18n } from '@kbn/i18n';
 import { METRIC_TYPE } from '@kbn/analytics';
-import classNames from 'classnames';
-import { generateFilters } from '@kbn/data-plugin/public';
+import type { SavedObject } from '@kbn/data-plugin/public';
+import { generateFilters, ISearchSource } from '@kbn/data-plugin/public';
+import type { DataViewAttributes } from '@kbn/data-views-plugin/public';
 import { DataView, DataViewField, DataViewType } from '@kbn/data-views-plugin/public';
+import type { Query, TimeRange } from '@kbn/es-query';
+import { i18n } from '@kbn/i18n';
+import { RequestAdapter } from '@kbn/inspector-plugin';
 import { InspectorSession } from '@kbn/inspector-plugin/public';
-import { useDiscoverServices } from '../../../../hooks/use_discover_services';
-import { DiscoverNoResults } from '../../../main/components/no_results';
-import { LoadingSpinner } from '../../../main/components/loading_spinner/loading_spinner';
-import { DiscoverSidebarResponsive } from '../../../main/components/sidebar';
-import { DiscoverLayoutProps } from '../../../main/components/layout/types';
+import classNames from 'classnames';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SEARCH_FIELDS_FROM_SOURCE } from '../../../../../common';
-import { popularizeField } from '../../../../utils/popularize_field';
-import { DiscoverTopNav } from '../../../main/components/top_nav/discover_topnav';
-import { DocViewFilterFn } from '../../../../services/doc_views/doc_views_types';
-import { getResultState } from '../../../main/utils/get_result_state';
-import { DiscoverUninitialized } from '../../../main/components/uninitialized/uninitialized';
-import { DataMainMsg } from '../../../main/hooks/use_saved_search';
-import { useColumns } from '../../../../hooks/use_data_grid_columns';
-import { FetchStatus } from '../../../types';
-import { useDataState } from '../../../main/hooks/use_data_state';
-import { SavedSearchURLConflictCallout } from '../../../../services/saved_searches';
 import { VIEW_MODE } from '../../../../components/view_mode_toggle';
+import { useColumns } from '../../../../hooks/use_data_grid_columns';
+import { useDiscoverServices } from '../../../../hooks/use_discover_services';
+import { DocViewFilterFn } from '../../../../services/doc_views/doc_views_types';
+import { SavedSearch, SavedSearchURLConflictCallout } from '../../../../services/saved_searches';
+import { DataTableRecord } from '../../../../types';
+import { popularizeField } from '../../../../utils/popularize_field';
+import '../../../main/components/layout/discover_layout.scss';
 import { hasActiveFilter } from '../../../main/components/layout/utils';
+import { LoadingSpinner } from '../../../main/components/loading_spinner/loading_spinner';
+import { DiscoverNoResults } from '../../../main/components/no_results';
+import { DiscoverSidebarResponsive } from '../../../main/components/sidebar';
+import { DiscoverTopNav } from '../../../main/components/top_nav/discover_topnav';
+import { DiscoverUninitialized } from '../../../main/components/uninitialized/uninitialized';
+import { useDataState } from '../../../main/hooks/use_data_state';
+import { DataMainMsg } from '../../../main/hooks/use_saved_search';
+import { getResultState } from '../../../main/utils/get_result_state';
+import { FetchStatus } from '../../../types';
+import { DataRefetch$, SavedSearchData } from '../../../main/hooks/use_saved_search';
+import { AppState, GetStateReturn } from '../../../main/services/discover_state';
 import { LogExplorer } from './log_explorer';
+import { DataAccessService } from '../../state_machines';
 
 /**
  * Local storage key for sidebar persistence state
@@ -52,6 +59,7 @@ const SidebarMemoized = React.memo(DiscoverSidebarResponsive);
 const TopNavMemoized = React.memo(DiscoverTopNav);
 
 export function LogExplorerLayout({
+  dataAccessService,
   indexPattern,
   indexPatternList,
   inspectorAdapters,
@@ -67,7 +75,24 @@ export function LogExplorerLayout({
   searchSource,
   state,
   stateContainer,
-}: DiscoverLayoutProps) {
+}: {
+  dataAccessService: DataAccessService;
+  indexPattern: DataView;
+  indexPatternList: Array<SavedObject<DataViewAttributes>>;
+  inspectorAdapters: { requests: RequestAdapter };
+  navigateTo: (url: string) => void;
+  onChangeIndexPattern: (id: string) => void;
+  onUpdateQuery: (payload: { dateRange: TimeRange; query?: Query }, isUpdate?: boolean) => void;
+  resetSavedSearch: () => void;
+  expandedDoc?: DataTableRecord;
+  setExpandedDoc: (doc?: DataTableRecord) => void;
+  savedSearch: SavedSearch;
+  savedSearchData$: SavedSearchData;
+  savedSearchRefetch$: DataRefetch$;
+  searchSource: ISearchSource;
+  state: AppState;
+  stateContainer: GetStateReturn;
+}) {
   const {
     trackUiMetric,
     capabilities,
@@ -295,10 +320,9 @@ export function LogExplorerLayout({
                   responsive={false}
                 >
                   <LogExplorer
-                    documents$={savedSearchData$.documents$}
+                    // documents$={savedSearchData$.documents$}
                     expandedDoc={expandedDoc}
-                    indexPattern={indexPattern}
-                    navigateTo={navigateTo}
+                    dataView={indexPattern}
                     onAddFilter={onAddFilter as DocViewFilterFn}
                     savedSearch={savedSearch}
                     setExpandedDoc={setExpandedDoc}
