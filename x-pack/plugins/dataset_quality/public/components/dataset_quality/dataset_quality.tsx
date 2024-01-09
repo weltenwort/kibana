@@ -7,29 +7,30 @@
 import React from 'react';
 import { CoreStart } from '@kbn/core/public';
 import { EuiFlexGroup, EuiFlexItem } from '@elastic/eui';
-import { DataStreamsStatsService } from '../../services/data_streams_stats/data_streams_stats_service';
 import { DatasetQualityContext, DatasetQualityContextValue } from './context';
 import { useKibanaContextForPluginProvider } from '../../utils';
 import { DatasetQualityStartDeps } from '../../types';
 import { Header } from './header';
 import { Table } from './table';
+import { DataStreamsStatsServiceStart } from '../../services/data_streams_stats';
 
 export interface CreateDatasetQualityArgs {
   core: CoreStart;
   plugins: DatasetQualityStartDeps;
+  dataStreamsStatsService: DataStreamsStatsServiceStart;
 }
 
-export const createDatasetQuality = ({ core, plugins }: CreateDatasetQualityArgs) => {
+export const createDatasetQuality = ({
+  core,
+  plugins,
+  dataStreamsStatsService,
+}: CreateDatasetQualityArgs) => {
+  const datasetQualityProviderValue: DatasetQualityContextValue = {
+    dataStreamsStatsServiceClient: dataStreamsStatsService.client,
+  };
+
   return () => {
     const KibanaContextProviderForPlugin = useKibanaContextForPluginProvider(core, plugins);
-
-    const dataStreamsStatsServiceClient = new DataStreamsStatsService().start({
-      http: core.http,
-    }).client;
-
-    const datasetQualityProviderValue: DatasetQualityContextValue = {
-      dataStreamsStatsServiceClient,
-    };
 
     return (
       <DatasetQualityContext.Provider value={datasetQualityProviderValue}>
