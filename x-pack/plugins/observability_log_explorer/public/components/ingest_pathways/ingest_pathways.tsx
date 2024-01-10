@@ -8,6 +8,7 @@
 import { EuiPageHeaderProps } from '@elastic/eui';
 import React, { useMemo } from 'react';
 import { ObservabilityLogExplorerPageTemplate } from '../page_template';
+import { ConnectedGraphVisualization } from './graph_visualization';
 import { ConnectedLoadingIndicator } from './loading_indicator';
 
 export const IngestPathways = React.memo(() => {
@@ -23,7 +24,7 @@ export const IngestPathways = React.memo(() => {
 
   return (
     <ObservabilityLogExplorerPageTemplate pageHeaderProps={pageHeaderProps}>
-      x
+      <ConnectedGraphVisualization />
     </ObservabilityLogExplorerPageTemplate>
   );
 });

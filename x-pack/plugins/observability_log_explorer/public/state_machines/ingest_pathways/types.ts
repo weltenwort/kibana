@@ -10,6 +10,12 @@ export interface IngestPathwaysParameters {
   dataStreamPattern: string;
 }
 
+export interface IngestPathwaysData {
+  dataStreams: Record<string, DataStream>;
+  agents: Record<string, Agent>;
+  relations: Relation[];
+}
+
 export interface TimeRange {
   from: string;
   to: string;

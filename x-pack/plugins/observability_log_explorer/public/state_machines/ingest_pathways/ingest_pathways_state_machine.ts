@@ -7,15 +7,17 @@
 
 import { ISearchGeneric } from '@kbn/data-plugin/common';
 import { IDataStreamsStatsClient } from '@kbn/dataset-quality-plugin/public';
+import { ElementDefinition } from 'cytoscape';
 import moment from 'moment';
-import { createMachine, assign, ActionTypes } from 'xstate';
-import { loadDataStreams } from './services/load_data_streams';
-import { Agent, DataStream, IngestPathwaysParameters, Relation } from './types';
+import { ActionTypes, assign, createMachine } from 'xstate';
+import { calculateGraph } from './graph';
+import { loadSignalData } from './services/load_signal_data';
+import { Agent, IngestPathwaysData, IngestPathwaysParameters } from './types';
 
 export const createPureIngestPathwaysStateMachine = (initialContext: IngestPathwaysContext) =>
   createMachine(
     {
-      /** @xstate-layout N4IgpgJg5mDOIC5QEkB2NYBcAKBDTAFgO64CesAdAK6oCWdmtuANrQF6QDEA2gAwC6iUAAcA9rFqNRqISAAeiAGwB2CgA4VARjXKArABoQpRJoAspigE5r15crUaATGs2OAvm8NoMOfMTKUzKK4EPRQAIIwqJiwnBDSYBT0AG6iANaJ3nC+hCTkFEEhYZFg0bAIKaIAxvi00nz8DbJiElIySPKIjrrqAMy6lr16hsYIA7wUpjaWdg6KzpoeXujZeLkBBcGh6AAi+LgAypgATmC4ALax8aiJlRkUWVhr-vmF21B7mIcnZ5cVqKkam0Gk0Oi1JHV2qAFAhVMpLIodAYjIheqZHFZprMnC4PJ4QKhRBA4LJHjkXvAweIIdJZDCALS6XoUZSaXiDYYohD0xQUXj8-mORyaTRDbT2XRLEBk555Sg0egQljsSDNaltOmIdEjRAuSZY+w41xSmV+OWbEKqqmtSGasaaKxmXjzKbTSwaHWwkWY6zzXqaXSaRTG-Gm9avLbFKIxNU22kdGGuCi9BbdT2mRTMt3Y+a40MrJ5mjZvMKfb6nC6UkTq20JxCMllsjnI0bC1Su2yG3OLPFAA */
+      /** @xstate-layout N4IgpgJg5mDOIC5QEkB2NYBcAKBDTAFgO64CesAdAK6oCWdmtuANrQF6QDEA2gAwC6iUAAcA9rFqNRqISAAeiAGwB2CgA4VARjXKArABoQpRJoAspigE5r15crUaATGs2OAvm8NoMOfMTKUzKK4EPRQAIIwqJiwnBDSYBT0AG6iANaJQSGRYNGwfIJIIGISUjJFCgiOuuoAzLqWtXqGxggNvBSmNpZ2DorOmh5e6HC+hCTkFFmh6ADKtFCoLAAi+LhxCUmoqRlTwRDziytrBbIlkrTSspVmnbq1rgZGiLWmmlbdvU4uHp4gqKIIHBZN5RnhxgEzuILlcKogALTWCjKUyObTNZ4IeGKCi8PF4xxozRNdFqXRDECgrDg-yTGj0C4sdiQKGlS7lUCVVEtRAuTqfezfVwUqljWmBfYsornMrXRC6d6WMy8fpdbqWDQ8hDKTSKmz9B4KxTCv6imkTCUhMI5PKsmEc+QI5xWZSKXT9J6tUyKCzqr79H6mkbUvwWvZWuYLJbMVaYXB22VwrEK5Go9GexCE95q2yCgODX5AA */
       context: initialContext,
       predictableActionArguments: true,
       id: 'IngestPathways',
@@ -27,7 +29,7 @@ export const createPureIngestPathwaysStateMachine = (initialContext: IngestPathw
       },
       states: {
         uninitialized: {
-          always: 'loadingDataStreams',
+          always: 'loadingSignalData',
         },
 
         loaded: {},
@@ -35,36 +37,50 @@ export const createPureIngestPathwaysStateMachine = (initialContext: IngestPathw
         loadingAgents: {
           invoke: {
             src: 'loadAgents',
+
             onDone: {
               target: 'loaded',
               actions: 'storeAgents',
             },
+
+            id: 'loadAgents',
           },
         },
 
-        loadingDataStreams: {
+        loadingSignalData: {
           invoke: {
-            src: 'loadDataStreams',
+            src: 'loadSignalData',
+
             onDone: {
               target: 'loadingAgents',
-              actions: 'storeDataStreams',
+              actions: ['storeSignalData', 'updateGraph'],
             },
+
+            id: 'loadSignalData',
           },
         },
       },
     },
     {
       actions: {
-        storeDataStreams: assign({
+        storeSignalData: assign({
           data: (context, event) => {
-            if (event.type !== 'done.invoke.loadDataStreams') {
+            if (event.type !== 'done.invoke.loadSignalData') {
               return context.data;
             }
 
             return {
-              ...context.data,
-              dataStreams: event.dataStreams,
+              dataStreams: { ...context.data.dataStreams, ...event.data.dataStreams },
+              agents: { ...context.data.agents, ...event.data.agents },
+              relations: [...context.data.relations, ...event.data.relations],
             };
+          },
+        }),
+        updateGraph: assign({
+          graph: (context, event) => {
+            const graph = calculateGraph(context.data);
+
+            return graph;
           },
         }),
       },
@@ -81,49 +97,46 @@ export const createIngestPathwaysStateMachine = ({
   search,
 }: IngestPathwaysStateMachineDependencies) => {
   const currentDate = new Date();
-  const from = moment(currentDate).add(moment.duration(1, 'days')).toISOString();
+  const from = moment(currentDate).subtract(moment.duration(1, 'days')).toISOString();
   const to = currentDate.toISOString();
 
   return createPureIngestPathwaysStateMachine({
     parameters: {
-      dataStreamPattern: 'logs-*',
+      dataStreamPattern: 'logs-*-*,metrics-*-*',
       timeRange: {
         from,
         to,
       },
     },
     data: {
-      dataStreams: [],
-      agents: [],
+      dataStreams: {},
+      agents: {},
       relations: [],
+    },
+    graph: {
+      elements: [],
     },
   }).withConfig({
     services: {
-      loadDataStreams: loadDataStreams({ dataStreamsStatsClient, search }),
+      loadSignalData: loadSignalData({ dataStreamsStatsClient, search }),
     },
   });
 };
 
 export interface IngestPathwaysContext {
   parameters: IngestPathwaysParameters;
-  data: {
-    dataStreams: DataStream[];
-    agents: Agent[];
-    relations: Relation[];
+  data: IngestPathwaysData;
+  graph: {
+    elements: ElementDefinition[];
   };
-}
-
-export interface IngestPathwaysActions {
-  storeDataStreams: () => {};
-  storeAgents: () => {};
 }
 
 export interface IngestPathwaysServices {
   [service: string]: {
     data: any;
   };
-  loadDataStreams: {
-    data: null;
+  loadSignalData: {
+    data: IngestPathwaysData;
   };
   loadAgents: {
     data: null;
@@ -135,8 +148,8 @@ export type IngestPathwaysEvent =
       type: 'load';
     }
   | {
-      type: `${ActionTypes.DoneInvoke}.loadDataStreams`;
-      dataStreams: DataStream[];
+      type: `${ActionTypes.DoneInvoke}.loadSignalData`;
+      data: IngestPathwaysServices['loadSignalData']['data'];
     }
   | {
       type: `${ActionTypes.DoneInvoke}.loadAgents`;
