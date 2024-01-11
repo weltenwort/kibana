@@ -7,13 +7,15 @@
 
 import { IngestPathwaysData } from './types';
 
+export const INDEX_MANAGEMENT_PREFIX = '/api/index_management';
+
 export const mergeIngestPathwaysData = (
   firstData: IngestPathwaysData,
-  secondData: IngestPathwaysData
+  secondData: Partial<IngestPathwaysData>
 ): IngestPathwaysData => ({
-  agents: { ...firstData.agents, ...secondData.agents },
-  dataStreams: { ...firstData.dataStreams, ...secondData.dataStreams },
-  indexTemplates: { ...firstData.indexTemplates, ...secondData.indexTemplates },
-  ingestPipelines: { ...firstData.ingestPipelines, ...secondData.ingestPipelines },
-  relations: [...firstData.relations, ...secondData.relations],
+  agents: { ...firstData.agents, ...(secondData.agents ?? {}) },
+  dataStreams: { ...firstData.dataStreams, ...(secondData.dataStreams ?? {}) },
+  indexTemplates: { ...firstData.indexTemplates, ...(secondData.indexTemplates ?? {}) },
+  ingestPipelines: { ...firstData.ingestPipelines, ...(secondData.ingestPipelines ?? {}) },
+  relations: [...firstData.relations, ...(secondData.relations ?? [])],
 });

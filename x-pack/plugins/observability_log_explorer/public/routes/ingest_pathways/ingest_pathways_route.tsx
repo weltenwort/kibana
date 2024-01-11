@@ -28,6 +28,7 @@ export const IngestPathwaysRoute = () => {
       datasetQuality: {
         dataStreamsStatsService: { client: dataStreamsStatsClient },
       },
+      http,
       serverless,
     },
   } = useKibanaContextForPlugin();
@@ -39,6 +40,7 @@ export const IngestPathwaysRoute = () => {
   return (
     <IngestPathwaysPageStateProvider
       dataStreamsStatsClient={dataStreamsStatsClient}
+      http={http}
       search={search}
     >
       <ConnectedContent />

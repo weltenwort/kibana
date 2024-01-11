@@ -5,20 +5,28 @@
  * 2.0.
  */
 
+import { HttpStart } from '@kbn/core-http-browser';
 import { ISearchGeneric } from '@kbn/data-plugin/common';
 import { IDataStreamsStatsClient } from '@kbn/dataset-quality-plugin/public';
 import { ElementDefinition } from 'cytoscape';
 import moment from 'moment';
 import { ActionTypes, assign, createMachine } from 'xstate';
 import { calculateGraph } from './graph';
+import { loadDataStreams } from './services/load_data_streams';
 import { loadSignalData } from './services/load_signal_data';
-import { Agent, IngestPathwaysData, IngestPathwaysParameters } from './types';
+import {
+  DataStream,
+  IndexTemplate,
+  IngestPathwaysData,
+  IngestPathwaysParameters,
+  IngestPipeline,
+} from './types';
 import { mergeIngestPathwaysData } from './utils';
 
 export const createPureIngestPathwaysStateMachine = (initialContext: IngestPathwaysContext) =>
   createMachine(
     {
-      /** @xstate-layout N4IgpgJg5mDOIC5QEkB2NYBcAKBDTAFgO64CesAdAK6oCWdmtuANrQF6QDEA2gAwC6iUAAcA9rFqNRqISAAeiAGwB2CgA4VARjXKArABoQpRJoAspigE5r15crUaATGs2OAvm8NoMOfMTKUzKK4EPRQ3nA4tMJgrKhwnBDSYBT0AG6iANYpQSERWNjRsfRwfIJIIGISUjIVCgi86pa8io4GRkqalhSmNpZ2Dq0uHl7okXiEJOQUuaHoAMq0UKgsACL4uInJqagZ2TPBEIvLaxtlslWStNKy9WY9ugDMru3GCI+mmlZ9A07DIyBUKIIHBZPlfJMAhdxFcbnVEABaVyKdRaHSvRG6b7WDSWXRtNTOTSKAHgib+aY0ehXFjsSDQ6rXWqgeqmRyGN4uHo-ex-VyksYFPxTQKHekVS41W6IXRfSxmFqOXp9SwaDmIZSKFF9VrPWWKfmeEBk4UBA4hMJkopxUESmFS+EIBH2VHKbR6dUIXqObG2XlDTQCnzkkXmuZQY4rZjrTC4Bmw5nyTFfZRs90YhCORxfZV+wZEjweIA */
+      /** @xstate-layout N4IgpgJg5mDOIC5QEkB2NYBcAKBDTAFgO64CesAdAK6oCWdmtuANrQF6QDEA2gAwC6iUAAcA9rFqNRqISAAeiAGwB2CgA4VARjXKArABoQpRJoAspigE5r15crUaATGs2OAvm8NoMOfMTKUzKK4EPRQ3nA4tMJgrKhwnBDSYBT0AG6iANYpQSERWNjRsfRwfIJIIGISUjIVCgi86pa8io4GRiaOvADMFKY2lnYOrWruniD5voQk5BS5oegAyrRQqCwAIvi4icmpqBnZc8EQy6sbW2WyVZK00rL1Zn263a7txgjdpppWA0NOLh4vOhInhpgEjiEwmgIGA5AAVMAAW2EzHwCSS8T2Bxyx2hsIRyNRmFKAiu4hudzqiAAtI1FKY1KZunpDO9LG0KMp+pZGVzXJpeJZARNgQU-DNAscwptMLhFpgAE5gXCI2A7THpLI4kIyuWK5Wqy4Va41e6IVTKSyKHRvJSPLnWUyKXSWUyObpqboecaoUQw+AVSag-zkMnVW61UD1amuSxWZm2hDUxQUXhptOORyaTTM7T2XTCoPi8E0eg3FjsSBhimR+SIN2sxAuPq-ez-VyF0VTEOSkJV43k01UhC6b6WMwtRzcgYaRsIHO6VQDVovUeKDvjItg2bzKFdwoxOJwatDqM0+zqLQ2ucCjQ-Gx-EZjIE+YMSiELKCnNbMXUniNmkmo6cm6eaJpm3zToMbYjJonavsWO5SugeLwkiKJogGIiDgBw7Us2lgJnOehqBQU7WLyXxZoK8Egohvafrq8pKiqWGVDhlJnkmzqproTrXh0CD9I05HQdm2iaPS3puEAA */
       context: initialContext,
       predictableActionArguments: true,
       id: 'IngestPathways',
@@ -41,7 +49,7 @@ export const createPureIngestPathwaysStateMachine = (initialContext: IngestPathw
 
             onDone: {
               target: 'loaded',
-              actions: 'storeIngestPipelines',
+              actions: ['storeIngestPipelines', 'updateGraph'],
             },
 
             id: 'loadIngestPipelines',
@@ -53,11 +61,33 @@ export const createPureIngestPathwaysStateMachine = (initialContext: IngestPathw
             src: 'loadSignalData',
 
             onDone: {
-              target: 'loadingIngestPipelines',
+              target: 'loadingDataStreams',
               actions: ['storeSignalData', 'updateGraph'],
             },
 
             id: 'loadSignalData',
+          },
+        },
+
+        loadingIndexTemplates: {
+          invoke: {
+            src: 'loadIndexTemplates',
+            id: 'loadIndexTemplates',
+            onDone: {
+              target: 'loadingIngestPipelines',
+              actions: ['storeIndexTemplates', 'updateGraph'],
+            },
+          },
+        },
+
+        loadingDataStreams: {
+          invoke: {
+            src: 'loadDataStreams',
+            id: 'loadDataStreams',
+            onDone: {
+              target: 'loadingIndexTemplates',
+              actions: 'storeDataStreams',
+            },
           },
         },
       },
@@ -73,6 +103,39 @@ export const createPureIngestPathwaysStateMachine = (initialContext: IngestPathw
             return mergeIngestPathwaysData(context.data, event.data);
           },
         }),
+        storeDataStreams: assign({
+          data: (context, event) => {
+            if (event.type !== 'done.invoke.loadDataStreams') {
+              return context.data;
+            }
+
+            return mergeIngestPathwaysData(context.data, {
+              dataStreams: event.data,
+            });
+          },
+        }),
+        storeIndexTemplates: assign({
+          data: (context, event) => {
+            if (event.type !== 'done.invoke.loadIndexTemplates') {
+              return context.data;
+            }
+
+            return mergeIngestPathwaysData(context.data, {
+              indexTemplates: event.data,
+            });
+          },
+        }),
+        storeIngestPipelines: assign({
+          data: (context, event) => {
+            if (event.type !== 'done.invoke.loadIngestPipelines') {
+              return context.data;
+            }
+
+            return mergeIngestPathwaysData(context.data, {
+              ingestPipelines: event.data,
+            });
+          },
+        }),
         updateGraph: assign({
           graph: (context, event) => {
             const graph = calculateGraph(context.data);
@@ -86,11 +149,13 @@ export const createPureIngestPathwaysStateMachine = (initialContext: IngestPathw
 
 export interface IngestPathwaysStateMachineDependencies {
   dataStreamsStatsClient: IDataStreamsStatsClient;
+  http: HttpStart;
   search: ISearchGeneric;
 }
 
 export const createIngestPathwaysStateMachine = ({
   dataStreamsStatsClient,
+  http,
   search,
 }: IngestPathwaysStateMachineDependencies) => {
   const currentDate = new Date();
@@ -118,6 +183,7 @@ export const createIngestPathwaysStateMachine = ({
   }).withConfig({
     services: {
       loadSignalData: loadSignalData({ dataStreamsStatsClient, search }),
+      loadDataStreams: loadDataStreams({ http }),
     },
   });
 };
@@ -137,8 +203,14 @@ export interface IngestPathwaysServices {
   loadSignalData: {
     data: IngestPathwaysData;
   };
+  loadDataStreams: {
+    data: Record<string, DataStream>;
+  };
+  loadIndexTemplates: {
+    data: Record<string, IndexTemplate>;
+  };
   loadIngestPipelines: {
-    data: null;
+    data: Record<string, IngestPipeline>;
   };
 }
 
@@ -151,6 +223,14 @@ export type IngestPathwaysEvent =
       data: IngestPathwaysServices['loadSignalData']['data'];
     }
   | {
+      type: `${ActionTypes.DoneInvoke}.loadDataStreams`;
+      data: IngestPathwaysServices['loadDataStreams']['data'];
+    }
+  | {
+      type: `${ActionTypes.DoneInvoke}.loadIndexTemplates`;
+      data: IngestPathwaysServices['loadIndexTemplates']['data'];
+    }
+  | {
       type: `${ActionTypes.DoneInvoke}.loadIngestPipelines`;
-      agents: Agent[];
+      data: IngestPathwaysServices['loadIngestPipelines']['data'];
     };
