@@ -14,6 +14,7 @@ export interface IngestPathwaysData {
   dataStreams: Record<string, DataStream>;
   agents: Record<string, Agent>;
   indexTemplates: Record<string, IndexTemplate>;
+  ingestPipelines: Record<string, IngestPipeline>;
   relations: Relation[];
 }
 
@@ -28,6 +29,10 @@ export interface DataStream {
 }
 
 export interface IndexTemplate {
+  id: string;
+}
+
+export interface IngestPipeline {
   id: string;
 }
 

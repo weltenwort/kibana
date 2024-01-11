@@ -13,6 +13,7 @@ import { ActionTypes, assign, createMachine } from 'xstate';
 import { calculateGraph } from './graph';
 import { loadSignalData } from './services/load_signal_data';
 import { Agent, IngestPathwaysData, IngestPathwaysParameters } from './types';
+import { mergeIngestPathwaysData } from './utils';
 
 export const createPureIngestPathwaysStateMachine = (initialContext: IngestPathwaysContext) =>
   createMachine(
@@ -69,11 +70,7 @@ export const createPureIngestPathwaysStateMachine = (initialContext: IngestPathw
               return context.data;
             }
 
-            return {
-              dataStreams: { ...context.data.dataStreams, ...event.data.dataStreams },
-              agents: { ...context.data.agents, ...event.data.agents },
-              relations: [...context.data.relations, ...event.data.relations],
-            };
+            return mergeIngestPathwaysData(context.data, event.data);
           },
         }),
         updateGraph: assign({
@@ -111,6 +108,8 @@ export const createIngestPathwaysStateMachine = ({
     data: {
       dataStreams: {},
       agents: {},
+      indexTemplates: {},
+      ingestPipelines: {},
       relations: [],
     },
     graph: {

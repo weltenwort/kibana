@@ -154,6 +154,8 @@ export const loadSignalData =
         dataStreams: {},
         agents: {},
         relations: [],
+        indexTemplates: {},
+        ingestPipelines: {},
       } as IngestPathwaysData
     );
   };
