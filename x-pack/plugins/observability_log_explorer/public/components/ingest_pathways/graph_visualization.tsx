@@ -7,7 +7,8 @@
 
 import { css } from '@emotion/react';
 import { useActor } from '@xstate/react';
-import cytoscape, { CytoscapeOptions } from 'cytoscape';
+import cytoscape, { CytoscapeOptions, NodeSingular } from 'cytoscape';
+import dagre from 'cytoscape-dagre';
 import React, { useEffect, useState } from 'react';
 import { useIngestPathwaysPageStateContext } from '../../state_machines/ingest_pathways';
 
@@ -19,10 +20,15 @@ export const ConnectedGraphVisualization = React.memo(() => {
 
 export const GraphVisualization = React.memo(
   ({ graphOptions }: { graphOptions: CytoscapeOptions }) => {
-    const [cytoscapeInstance] = useState(() => cytoscape(initialGraphOptions));
+    const [cytoscapeInstance] = useState(() => {
+      cytoscape.use(dagre);
+      const newCytoscapeInstance = cytoscape(initialGraphOptions);
+      return newCytoscapeInstance;
+    });
 
     useEffect(() => {
       cytoscapeInstance.json(graphOptions);
+      cytoscapeInstance.layout(initialGraphOptions.layout!).run();
     }, [cytoscapeInstance, graphOptions]);
 
     return (
@@ -40,18 +46,53 @@ export const GraphVisualization = React.memo(
   }
 );
 
-const initialGraphOptions: CytoscapeOptions = {
+const initialGraphOptions: CytoscapeOptions & { layout: Record<string, any> } = {
   elements: [],
   style: [
     {
-      selector: 'node',
+      selector: '*',
       style: {
-        label: 'data(id)',
+        'font-size': '12px',
+      },
+    },
+    {
+      selector: 'node.agent',
+      style: {
+        label: (elem: NodeSingular) => {
+          const agent = elem.data('agent');
+          return `${agent.name}\n${agent.type} ${agent.version}`;
+        },
+        'text-wrap': 'wrap',
+        shape: 'ellipse',
+      },
+    },
+    {
+      selector: 'node.dataStream',
+      style: {
+        label: 'data(dataStream.id)',
+        shape: 'hexagon',
+      },
+    },
+    {
+      selector: 'edge',
+      style: {
+        width: 1,
+        'curve-style': 'bezier',
+      },
+    },
+    {
+      selector: 'edge.agentShipsTo',
+      style: {
+        label: 'data(relation.signalCount)',
+        'target-arrow-shape': 'chevron',
+        'target-arrow-fill': 'filled',
       },
     },
   ],
   layout: {
-    name: 'random',
+    name: 'dagre',
+    rankDir: 'LR',
+    rankSep: 300,
   },
 };
 

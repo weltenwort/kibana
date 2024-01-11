@@ -85,24 +85,44 @@ export const loadSignalData =
                   },
                 ],
               },
+              aggregations: {
+                agent: {
+                  top_metrics: {
+                    metrics: [
+                      {
+                        field: 'agent.name',
+                      },
+                      {
+                        field: 'agent.type',
+                      },
+                      {
+                        field: 'agent.version',
+                      },
+                    ],
+                    sort: {
+                      '@timestamp': 'desc',
+                    },
+                  },
+                },
+              },
             },
           },
         },
       },
     };
 
-    console.log(request);
-
     const { rawResponse } = await lastValueFrom(search(request));
-
-    console.log(rawResponse);
 
     const response = decodeOrThrow(signalResponseRT)(rawResponse);
 
     return response.aggregations.relations.buckets.reduce(
       (
         currentData,
-        { key: { agentId, dataStreamType, dataStreamDataset, dataStreamNamespace } }
+        {
+          key: { agentId, dataStreamType, dataStreamDataset, dataStreamNamespace },
+          doc_count: signalCount,
+          agent,
+        }
       ) => {
         const dataStreamId = `${dataStreamType}-${dataStreamDataset}-${dataStreamNamespace}`;
         if (currentData.dataStreams[dataStreamId] == null) {
@@ -112,15 +132,20 @@ export const loadSignalData =
         }
 
         if (currentData.agents[agentId] == null) {
+          const agentMetadata = agent.top[0]?.metrics;
           currentData.agents[agentId] = {
             id: agentId,
+            type: agentMetadata['agent.type'],
+            name: agentMetadata['agent.name'],
+            version: agentMetadata['agent.version'],
           };
         }
 
         currentData.relations.push({
-          type: 'agent-ships-to',
+          type: 'agent-ships-to-data-stream',
           agentId,
           dataStreamId,
+          signalCount,
         });
 
         return currentData;
@@ -145,6 +170,17 @@ const signalResponseRT = rt.strict({
             dataStreamNamespace: rt.string,
           }),
           doc_count: rt.number,
+          agent: rt.strict({
+            top: rt.array(
+              rt.strict({
+                metrics: rt.strict({
+                  'agent.name': rt.string,
+                  'agent.type': rt.string,
+                  'agent.version': rt.string,
+                }),
+              })
+            ),
+          }),
         })
       ),
     }),

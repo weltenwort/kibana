@@ -17,7 +17,7 @@ import { Agent, IngestPathwaysData, IngestPathwaysParameters } from './types';
 export const createPureIngestPathwaysStateMachine = (initialContext: IngestPathwaysContext) =>
   createMachine(
     {
-      /** @xstate-layout N4IgpgJg5mDOIC5QEkB2NYBcAKBDTAFgO64CesAdAK6oCWdmtuANrQF6QDEA2gAwC6iUAAcA9rFqNRqISAAeiAGwB2CgA4VARjXKArABoQpRJoAspigE5r15crUaATGs2OAvm8NoMOfMTKUzKK4EPRQAIIwqJiwnBDSYBT0AG6iANaJQSGRYNGwfIJIIGISUjJFCgiOuuoAzLqWtXqGxggNvBSmNpZ2DorOmh5e6HC+hCTkFFmh6ADKtFCoLAAi+LhxCUmoqRlTwRDziytrBbIlkrTSspVmnbq1rgZGiLWmmlbdvU4uHp4gqKIIHBZN5RnhxgEzuILlcKogALTWCjKUyObTNZ4IeGKCi8PF4xxozRNdFqXRDECgrDg-yTGj0C4sdiQKGlS7lUCVVEtRAuTqfezfVwUqljWmBfYsornMrXRC6d6WMy8fpdbqWDQ8hDKTSKmz9B4KxTCv6imkTCUhMI5PKsmEc+QI5xWZSKXT9J6tUyKCzqr79H6mkbUvwWvZWuYLJbMVaYXB22VwrEK5Go9GexCE95q2yCgODX5AA */
+      /** @xstate-layout N4IgpgJg5mDOIC5QEkB2NYBcAKBDTAFgO64CesAdAK6oCWdmtuANrQF6QDEA2gAwC6iUAAcA9rFqNRqISAAeiAGwB2CgA4VARjXKArABoQpRJoAspigE5r15crUaATGs2OAvm8NoMOfMTKUzKK4EPRQ3nA4tMJgrKhwnBDSYBT0AG6iANYpQSERWNjRsfRwfIJIIGISUjIVCgi86pa8io4GRkqalhSmNpZ2Dq0uHl7okXiEJOQUuaHoAMq0UKgsACL4uInJqagZ2TPBEIvLaxtlslWStNKy9WY9ugDMru3GCI+mmlZ9A07DIyBUKIIHBZPlfJMAhdxFcbnVEABaVyKdRaHSvRG6b7WDSWXRtNTOTSKAHgib+aY0ehXFjsSDQ6rXWqgeqmRyGN4uHo-ex-VyksYFPxTQKHekVS41W6IXRfSxmFqOXp9SwaDmIZSKFF9VrPWWKfmeEBk4UBA4hMJkopxUESmFS+EIBH2VHKbR6dUIXqObG2XlDTQCnzkkXmuZQY4rZjrTC4Bmw5nyTFfZRs90YhCORxfZV+wZEjweIA */
       context: initialContext,
       predictableActionArguments: true,
       id: 'IngestPathways',
@@ -34,16 +34,16 @@ export const createPureIngestPathwaysStateMachine = (initialContext: IngestPathw
 
         loaded: {},
 
-        loadingAgents: {
+        loadingIngestPipelines: {
           invoke: {
-            src: 'loadAgents',
+            src: 'loadIngestPipelines',
 
             onDone: {
               target: 'loaded',
-              actions: 'storeAgents',
+              actions: 'storeIngestPipelines',
             },
 
-            id: 'loadAgents',
+            id: 'loadIngestPipelines',
           },
         },
 
@@ -52,7 +52,7 @@ export const createPureIngestPathwaysStateMachine = (initialContext: IngestPathw
             src: 'loadSignalData',
 
             onDone: {
-              target: 'loadingAgents',
+              target: 'loadingIngestPipelines',
               actions: ['storeSignalData', 'updateGraph'],
             },
 
@@ -138,7 +138,7 @@ export interface IngestPathwaysServices {
   loadSignalData: {
     data: IngestPathwaysData;
   };
-  loadAgents: {
+  loadIngestPipelines: {
     data: null;
   };
 }
@@ -152,6 +152,6 @@ export type IngestPathwaysEvent =
       data: IngestPathwaysServices['loadSignalData']['data'];
     }
   | {
-      type: `${ActionTypes.DoneInvoke}.loadAgents`;
+      type: `${ActionTypes.DoneInvoke}.loadIngestPipelines`;
       agents: Agent[];
     };

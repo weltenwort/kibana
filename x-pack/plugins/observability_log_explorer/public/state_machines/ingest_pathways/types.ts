@@ -13,6 +13,7 @@ export interface IngestPathwaysParameters {
 export interface IngestPathwaysData {
   dataStreams: Record<string, DataStream>;
   agents: Record<string, Agent>;
+  indexTemplates: Record<string, IndexTemplate>;
   relations: Relation[];
 }
 
@@ -23,17 +24,26 @@ export interface TimeRange {
 
 export interface DataStream {
   id: string;
+  indexTemplateId?: string;
+}
+
+export interface IndexTemplate {
+  id: string;
 }
 
 export interface Agent {
   id: string;
+  type: string;
+  name: string;
+  version: string;
 }
 
 export type Relation =
   | {
-      type: 'agent-ships-to';
+      type: 'agent-ships-to-data-stream';
       agentId: string;
       dataStreamId: string;
+      signalCount: number;
     }
   | {
       type: 'unknown';
