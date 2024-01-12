@@ -30,6 +30,7 @@ export interface DataStream {
 
 export interface IndexTemplate {
   id: string;
+  ingestPipelineIds: string[];
 }
 
 export interface IngestPipeline {

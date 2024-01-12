@@ -13,6 +13,7 @@ import moment from 'moment';
 import { ActionTypes, assign, createMachine } from 'xstate';
 import { calculateGraph } from './graph';
 import { loadDataStreams } from './services/load_data_streams';
+import { loadIndexTemplates } from './services/load_index_templates';
 import { loadSignalData } from './services/load_signal_data';
 import {
   DataStream,
@@ -184,6 +185,7 @@ export const createIngestPathwaysStateMachine = ({
     services: {
       loadSignalData: loadSignalData({ dataStreamsStatsClient, search }),
       loadDataStreams: loadDataStreams({ http }),
+      loadIndexTemplates: loadIndexTemplates({ http }),
     },
   });
 };
