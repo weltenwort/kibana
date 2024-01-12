@@ -6,25 +6,34 @@
  */
 
 import { ElementDefinition } from 'cytoscape';
-import { Agent, DataStream, IngestPathwaysData, Relation } from '../types';
+import {
+  Agent,
+  DataStreamEntry,
+  IndexTemplate,
+  IngestPathwaysData,
+  IngestPipelineEntry,
+} from '../types';
 
 export const calculateGraph = ({
   agents,
   dataStreams,
-  relations,
+  indexTemplates,
+  ingestPipelines,
 }: IngestPathwaysData): { elements: ElementDefinition[] } => {
   const dataStreamElements = Object.values(dataStreams).flatMap(convertDataStreamToGraphElements);
-  const agentElements = Object.values(agents).flatMap(convertAgentToGraphElements);
-  const relationElements = relations.flatMap(
-    convertRelationToGraphElements({ agents, dataStreams })
+  const agentElements = Object.values(agents).flatMap(
+    convertAgentToGraphElements({ dataStreams, indexTemplates })
+  );
+  const ingestPipelineElements = Object.values(ingestPipelines).flatMap(
+    convertIngestPipelineToGraphElements
   );
 
   return {
-    elements: [...dataStreamElements, ...agentElements, ...relationElements],
+    elements: [...dataStreamElements, ...agentElements, ...ingestPipelineElements],
   };
 };
 
-const convertDataStreamToGraphElements = (dataStream: DataStream): ElementDefinition[] => [
+const convertDataStreamToGraphElements = (dataStream: DataStreamEntry): ElementDefinition[] => [
   {
     group: 'nodes',
     classes: 'dataStream',
@@ -35,49 +44,106 @@ const convertDataStreamToGraphElements = (dataStream: DataStream): ElementDefini
   },
 ];
 
-const convertAgentToGraphElements = (agent: Agent): ElementDefinition[] => [
+const convertAgentToGraphElements =
+  ({
+    dataStreams,
+    indexTemplates,
+  }: {
+    dataStreams: Record<string, DataStreamEntry>;
+    indexTemplates: Record<string, IndexTemplate>;
+  }) =>
+  (agent: Agent): ElementDefinition[] =>
+    [
+      {
+        group: 'nodes',
+        classes: 'agent',
+        data: {
+          id: getAgentElementId(agent),
+          agent,
+        },
+      },
+      ...agent.shipsTo.flatMap((shipsTo): ElementDefinition[] => {
+        const dataStream = dataStreams[shipsTo.dataStreamId];
+        const source = getAgentElementId(agent);
+        const target = getDataStreamElementId({
+          type: 'dataStreamStub',
+          id: shipsTo.dataStreamId,
+        });
+        const agentDataStreamEdge: ElementDefinition = {
+          group: 'edges',
+          classes: 'shipsTo agentShipsTo',
+          data: {
+            id: `relation-${source}-ships-to-${target}`,
+            source,
+            target,
+            agent,
+            shipsTo,
+          },
+        };
+
+        if (dataStream.type === 'dataStream') {
+          const indexTemplate = indexTemplates[dataStream.indexTemplateId];
+
+          return indexTemplate.ingestPipelineIds.reduce<ElementDefinition[]>(
+            (edges, ingestPipelineId, ingestPipelineIndex, ingestPipelineIds) => {
+              const lastEdge = edges[edges.length - 1];
+              const leadingEdges = edges.slice(0, -1);
+
+              const ingestPipelineElementId = getIngestPipelineElementId({
+                type: 'ingestPipelineStub',
+                id: ingestPipelineId,
+              });
+
+              const splitEdges: ElementDefinition[] = [
+                {
+                  group: 'edges',
+                  classes: lastEdge.classes,
+                  data: {
+                    id: `relation-${lastEdge.data.source}-ships-to-${ingestPipelineElementId}`,
+                    source: lastEdge.data.source,
+                    target: ingestPipelineElementId,
+                    shipsTo: lastEdge.data.shipsTo,
+                    agent,
+                  },
+                },
+                {
+                  group: 'edges',
+                  classes: 'shipsTo',
+                  data: {
+                    id: `relation-${ingestPipelineElementId}-ships-to-${lastEdge.data.target}`,
+                    source: ingestPipelineElementId,
+                    target: lastEdge.data.target,
+                    shipsTo: {},
+                    agent,
+                  },
+                },
+              ];
+
+              return [...leadingEdges, ...splitEdges];
+            },
+            [agentDataStreamEdge]
+          );
+        } else {
+          return [agentDataStreamEdge];
+        }
+      }),
+    ];
+
+const convertIngestPipelineToGraphElements = (
+  ingestPipeline: IngestPipelineEntry
+): ElementDefinition[] => [
   {
     group: 'nodes',
-    classes: 'agent',
+    classes: 'ingestPipeline',
     data: {
-      id: getAgentElementId(agent),
-      agent,
+      id: getIngestPipelineElementId(ingestPipeline),
+      ingestPipeline,
     },
   },
 ];
 
-const convertRelationToGraphElements =
-  ({
-    agents,
-    dataStreams,
-  }: {
-    agents: Record<string, Agent>;
-    dataStreams: Record<string, DataStream>;
-  }) =>
-  (relation: Relation): ElementDefinition[] => {
-    if (relation.type === 'agent-ships-to-data-stream') {
-      const agent = agents[relation.agentId];
-      const dataStream = dataStreams[relation.dataStreamId];
-
-      return [
-        {
-          group: 'edges',
-          classes: 'agentShipsTo',
-          data: {
-            id: `relation-agent-${relation.agentId}-ships-to-dataStream-${relation.dataStreamId}`,
-            source: getAgentElementId(agent),
-            target: getDataStreamElementId(dataStream),
-            relation,
-            agent,
-            dataStream,
-          },
-        },
-      ];
-    } else {
-      return [];
-    }
-  };
-
-const getDataStreamElementId = ({ id }: DataStream) => `dataStream-${id}`;
+const getDataStreamElementId = ({ id }: DataStreamEntry) => `dataStream-${id}`;
 
 const getAgentElementId = ({ id }: Agent) => `agent-${id}`;
+
+const getIngestPipelineElementId = ({ id }: IngestPipelineEntry) => `ingestPipeline-${id}`;

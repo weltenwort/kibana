@@ -12,11 +12,11 @@ import { IngestPathwaysContext, IngestPathwaysServices } from '../ingest_pathway
 import { DataStream } from '../types';
 import { INDEX_MANAGEMENT_PREFIX } from '../utils';
 
+type LoadDataStreamsResult = IngestPathwaysServices['loadDataStreams']['data'];
+
 export const loadDataStreams =
   ({ http }: { http: HttpStart }) =>
-  async ({
-    data: { dataStreams },
-  }: IngestPathwaysContext): Promise<IngestPathwaysServices['loadDataStreams']['data']> => {
+  async ({ data: { dataStreams } }: IngestPathwaysContext): Promise<LoadDataStreamsResult> => {
     const updatedDataStreams: Record<string, DataStream> = Object.fromEntries(
       await Promise.all(
         Object.entries(dataStreams).map(async ([, dataStream]) => {
@@ -25,13 +25,13 @@ export const loadDataStreams =
           );
           const response = decodeOrThrow(dataStreamResponseRT)(rawResponse);
 
-          return [
-            dataStream.id,
-            {
-              ...dataStream,
-              indexTemplateId: response.indexTemplateName,
-            },
-          ];
+          const newDataStream: DataStream = {
+            type: 'dataStream',
+            id: dataStream.id,
+            indexTemplateId: response.indexTemplateName,
+          };
+
+          return [dataStream.id, newDataStream] as const;
         })
       )
     );

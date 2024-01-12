@@ -11,11 +11,10 @@ export interface IngestPathwaysParameters {
 }
 
 export interface IngestPathwaysData {
-  dataStreams: Record<string, DataStream>;
+  dataStreams: Record<string, DataStreamEntry>;
   agents: Record<string, Agent>;
   indexTemplates: Record<string, IndexTemplate>;
-  ingestPipelines: Record<string, IngestPipeline>;
-  relations: Relation[];
+  ingestPipelines: Record<string, IngestPipelineEntry>;
 }
 
 export interface TimeRange {
@@ -23,34 +22,43 @@ export interface TimeRange {
   to: string;
 }
 
-export interface DataStream {
+export interface DataStreamStub {
+  type: 'dataStreamStub';
   id: string;
-  indexTemplateId?: string;
 }
+
+export interface DataStream {
+  type: 'dataStream';
+  id: string;
+  indexTemplateId: string;
+}
+
+export type DataStreamEntry = DataStream | DataStreamStub;
 
 export interface IndexTemplate {
   id: string;
   ingestPipelineIds: string[];
 }
 
-export interface IngestPipeline {
+export interface IngestPipelineStub {
+  type: 'ingestPipelineStub';
   id: string;
 }
+
+export interface IngestPipeline {
+  type: 'ingestPipeline';
+  id: string;
+}
+
+export type IngestPipelineEntry = IngestPipeline | IngestPipelineStub;
 
 export interface Agent {
   id: string;
   type: string;
   name: string;
   version: string;
+  shipsTo: Array<{
+    dataStreamId: string;
+    signalCount: number;
+  }>;
 }
-
-export type Relation =
-  | {
-      type: 'agent-ships-to-data-stream';
-      agentId: string;
-      dataStreamId: string;
-      signalCount: number;
-    }
-  | {
-      type: 'unknown';
-    };

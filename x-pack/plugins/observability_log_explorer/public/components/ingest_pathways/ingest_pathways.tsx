@@ -10,6 +10,7 @@ import React, { useMemo } from 'react';
 import { ObservabilityLogExplorerPageTemplate } from '../page_template';
 import { ConnectedGraphVisualization } from './graph_visualization';
 import { ConnectedLoadingIndicator } from './loading_indicator';
+import { ConnectedReloadButton } from './reload_button';
 
 export const IngestPathways = React.memo(() => {
   const pageHeaderProps = useMemo(
@@ -17,7 +18,7 @@ export const IngestPathways = React.memo(() => {
       alignItems: 'center',
       bottomBorder: 'extended',
       pageTitle: 'Ingest Pathways',
-      rightSideItems: [<ConnectedLoadingIndicator />],
+      rightSideItems: [<ConnectedLoadingIndicator />, <ConnectedReloadButton />],
     }),
     []
   );

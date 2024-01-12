@@ -10,8 +10,9 @@ import { IDataStreamsStatsClient } from '@kbn/dataset-quality-plugin/public';
 import { decodeOrThrow } from '@kbn/io-ts-utils';
 import * as rt from 'io-ts';
 import { lastValueFrom } from 'rxjs';
-import { IngestPathwaysContext } from '../ingest_pathways_state_machine';
-import { IngestPathwaysData } from '../types';
+import { IngestPathwaysContext, IngestPathwaysServices } from '../ingest_pathways_state_machine';
+
+type LoadSignalDataResult = IngestPathwaysServices['loadSignalData']['data'];
 
 export const loadSignalData =
   ({
@@ -23,7 +24,7 @@ export const loadSignalData =
   }) =>
   async ({
     parameters: { dataStreamPattern, timeRange },
-  }: IngestPathwaysContext): Promise<IngestPathwaysData> => {
+  }: IngestPathwaysContext): Promise<LoadSignalDataResult> => {
     const request: IEsSearchRequest<ISearchRequestParams> = {
       params: {
         index: dataStreamPattern,
@@ -115,11 +116,11 @@ export const loadSignalData =
 
     const response = decodeOrThrow(signalResponseRT)(rawResponse);
 
-    return response.aggregations.relations.buckets.reduce(
+    return response.aggregations.relations.buckets.reduce<LoadSignalDataResult>(
       (
         currentData,
         {
-          key: { agentId, dataStreamType, dataStreamDataset, dataStreamNamespace },
+          key: { agentId: unsafeAgentId, dataStreamType, dataStreamDataset, dataStreamNamespace },
           doc_count: signalCount,
           agent,
         }
@@ -127,36 +128,47 @@ export const loadSignalData =
         const dataStreamId = `${dataStreamType}-${dataStreamDataset}-${dataStreamNamespace}`;
         if (currentData.dataStreams[dataStreamId] == null) {
           currentData.dataStreams[dataStreamId] = {
+            type: 'dataStreamStub',
             id: dataStreamId,
           };
         }
 
-        if (currentData.agents[agentId] == null) {
-          const agentMetadata = agent.top[0]?.metrics;
+        const agentMetadata = agent.top[0]?.metrics;
+        const agentId = `${agentMetadata['agent.type'] ?? 'unknown'}-${unsafeAgentId}`;
+        const previousAgent = currentData.agents[agentId];
+
+        if (previousAgent == null) {
           currentData.agents[agentId] = {
             id: agentId,
-            type: agentMetadata['agent.type'],
-            name: agentMetadata['agent.name'],
-            version: agentMetadata['agent.version'],
+            type: agentMetadata['agent.type'] ?? 'unknown',
+            name: agentMetadata['agent.name'] ?? agentId,
+            version: agentMetadata['agent.version'] ?? 'unknown',
+            shipsTo: [
+              {
+                dataStreamId,
+                signalCount,
+              },
+            ],
+          };
+        } else {
+          currentData.agents[agentId] = {
+            ...previousAgent,
+            shipsTo: [
+              ...previousAgent.shipsTo,
+              {
+                dataStreamId,
+                signalCount,
+              },
+            ],
           };
         }
-
-        currentData.relations.push({
-          type: 'agent-ships-to-data-stream',
-          agentId,
-          dataStreamId,
-          signalCount,
-        });
 
         return currentData;
       },
       {
         dataStreams: {},
         agents: {},
-        relations: [],
-        indexTemplates: {},
-        ingestPipelines: {},
-      } as IngestPathwaysData
+      }
     );
   };
 
@@ -176,9 +188,9 @@ const signalResponseRT = rt.strict({
             top: rt.array(
               rt.strict({
                 metrics: rt.strict({
-                  'agent.name': rt.string,
-                  'agent.type': rt.string,
-                  'agent.version': rt.string,
+                  'agent.name': rt.union([rt.string, rt.null]),
+                  'agent.type': rt.union([rt.string, rt.null]),
+                  'agent.version': rt.union([rt.string, rt.null]),
                 }),
               })
             ),

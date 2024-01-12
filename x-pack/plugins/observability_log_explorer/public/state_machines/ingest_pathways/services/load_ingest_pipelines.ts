@@ -9,18 +9,18 @@ import { HttpStart } from '@kbn/core-http-browser';
 import { decodeOrThrow } from '@kbn/io-ts-utils';
 import * as rt from 'io-ts';
 import { IngestPathwaysContext, IngestPathwaysServices } from '../ingest_pathways_state_machine';
-import { IndexTemplate, IngestPipelineStub } from '../types';
+import { IndexTemplate, IngestPipeline } from '../types';
 import { INDEX_MANAGEMENT_PREFIX } from '../utils';
-
-type LoadIndexTemplatesResult = IngestPathwaysServices['loadIndexTemplates']['data'];
 
 export const loadIndexTemplates =
   ({ http }: { http: HttpStart }) =>
-  async ({ data: { dataStreams } }: IngestPathwaysContext): Promise<LoadIndexTemplatesResult> => {
+  async ({
+    data: { dataStreams },
+  }: IngestPathwaysContext): Promise<IngestPathwaysServices['loadIndexTemplates']['data']> => {
     // load main index templates
     const mentionedIndexTemplateNames = new Set(
-      Object.values(dataStreams).flatMap((dataStream) =>
-        dataStream.type === 'dataStream' ? [dataStream.indexTemplateId] : []
+      Object.values(dataStreams).flatMap(({ indexTemplateId }) =>
+        indexTemplateId != null ? [indexTemplateId] : []
       )
     );
 
@@ -84,19 +84,6 @@ export const loadIndexTemplates =
           },
         ];
       })
-    );
-
-    // derive ingest pipeline stubs
-    const ingestPipelines: Record<string, IngestPipelineStub> = Object.fromEntries(
-      Array.from(
-        new Set(Object.values(indexTemplates).flatMap(({ ingestPipelineIds }) => ingestPipelineIds))
-      ).map((ingestPipelineId) => [
-        ingestPipelineId,
-        {
-          type: 'ingestPipelineStub',
-          id: ingestPipelineId,
-        },
-      ])
     );
 
     return {

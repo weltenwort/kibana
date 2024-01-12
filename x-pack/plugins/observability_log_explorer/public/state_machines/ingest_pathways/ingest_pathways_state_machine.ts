@@ -16,18 +16,21 @@ import { loadDataStreams } from './services/load_data_streams';
 import { loadIndexTemplates } from './services/load_index_templates';
 import { loadSignalData } from './services/load_signal_data';
 import {
+  Agent,
   DataStream,
+  DataStreamStub,
   IndexTemplate,
   IngestPathwaysData,
   IngestPathwaysParameters,
   IngestPipeline,
+  IngestPipelineStub,
 } from './types';
 import { mergeIngestPathwaysData } from './utils';
 
 export const createPureIngestPathwaysStateMachine = (initialContext: IngestPathwaysContext) =>
   createMachine(
     {
-      /** @xstate-layout N4IgpgJg5mDOIC5QEkB2NYBcAKBDTAFgO64CesAdAK6oCWdmtuANrQF6QDEA2gAwC6iUAAcA9rFqNRqISAAeiAGwB2CgA4VARjXKArABoQpRJoAspigE5r15crUaATGs2OAvm8NoMOfMTKUzKK4EPRQ3nA4tMJgrKhwnBDSYBT0AG6iANYpQSERWNjRsfRwfIJIIGISUjIVCgi86pa8io4GRiaOvADMFKY2lnYOrWruniD5voQk5BS5oegAyrRQqCwAIvi4icmpqBnZc8EQy6sbW2WyVZK00rL1Zn263a7txgjdpppWA0NOLh4vOhInhpgEjiEwmgIGA5AAVMAAW2EzHwCSS8T2Bxyx2hsIRyNRmFKAiu4hudzqiAAtI1FKY1KZunpDO9LG0KMp+pZGVzXJpeJZARNgQU-DNAscwptMLhFpgAE5gXCI2A7THpLI4kIyuWK5Wqy4Va41e6IVTKSyKHRvJSPLnWUyKXSWUyObpqboecaoUQw+AVSag-zkMnVW61UD1amuSxWZm2hDUxQUXhptOORyaTTM7T2XTCoPi8E0eg3FjsSBhimR+SIN2sxAuPq-ez-VyF0VTEOSkJV43k01UhC6b6WMwtRzcgYaRsIHO6VQDVovUeKDvjItg2bzKFdwoxOJwatDqM0+zqLQ2ucCjQ-Gx-EZjIE+YMSiELKCnNbMXUniNmkmo6cm6eaJpm3zToMbYjJonavsWO5SugeLwkiKJogGIiDgBw7Us2lgJnOehqBQU7WLyXxZoK8Egohvafrq8pKiqWGVDhlJnkmzqproTrXh0CD9I05HQdm2iaPS3puEAA */
+      /** @xstate-layout N4IgpgJg5mDOIC5QEkB2NYBcAKBDTAFgO64CesAdAK6oCWdmtuANrQF6QDEA2gAwC6iUAAcA9rFqNRqISAAeiAGwB2CgA4VARjXKArABoQpRJoAspigE5r15crUaATGs2OAvm8NoMOfMTKUzKK4EPRQ3nA4tMJgrKhwnBDSYBT0AG6iANYpQSERWNjRsfRwfIJIIGISUjIVCgi86pa8io4GRiaOvADMFKY2lnYOrWruniD5voQk5BS5oegAyrRQqCwAIvi4icmpqBnZc8EQy6sbW2WyVZK00rL1Zn263a7txgjdpppWA0NOLh4vOhInhpgEjiEwmgIGA5AAVMAAW2EzHwCSS8T2Bxyx2hsIRyNRmFKAiu4hudzqiAAtI1FKY1KZunpDO9LG0KMp+pZGVzXJpeJZARNgQU-DNAscwptMLhFpgAE5gXCI2A7THpLI4kIyuWK5Wqy4Va41e6IVTKSyKHRvJSPLnWUyKXSWUyObpqbrCyag-yzebSrbypUqtXzI0icmmqkIZzfRyOJ2J3QC3S6OyKVmIFO9PS8fOmFrOLljIE+X0SiELcKoGHwpEotFh44RypR261UD1F6WCiOTRpj3u7qWMyOLMIezfB2Wbou3h2bqlkXl8XggPoH1FOIJcOk43tyldxBztQUbqKAdtS1MvRqCeaR+NXT53iJ5Qj626NTe0VTP2SiEXB7uUkbVB2ZofFafSmDmajsqMXwXg+c6qAMrQvCml5jOMqCiDC8AVD6a7kGS4FHvINKuL2s4sh0CDUooFCvrwT7dC0Ni6MuxFgrMND0DcLDsJAZEUp2lEIG6E4uH0vz2P8ri-quvGATCECidGx4ICmVhmEW3IDBoKHpj81gYQOmjYUpIIkapUJ-oUMQ7oRYFiZB1L2OoWg2g+vAaKZtjySM3EObZVZhKcazMLqGkQTG1I6SW2h0e8CbfAZgxBXG1liip4WbrW+INkScCxRR9TUjJtG2pO359tyvJfP2go5f+lYblAurBgaLltuR4kVc6zG6E6Pn0f0jSJoFj7aJZpgeB4QA */
       context: initialContext,
       predictableActionArguments: true,
       id: 'IngestPathways',
@@ -42,7 +45,11 @@ export const createPureIngestPathwaysStateMachine = (initialContext: IngestPathw
           always: 'loadingSignalData',
         },
 
-        loaded: {},
+        loaded: {
+          on: {
+            load: 'loadingSignalData',
+          },
+        },
 
         loadingIngestPipelines: {
           invoke: {
@@ -54,6 +61,10 @@ export const createPureIngestPathwaysStateMachine = (initialContext: IngestPathw
             },
 
             id: 'loadIngestPipelines',
+          },
+
+          on: {
+            load: 'loadingSignalData',
           },
         },
 
@@ -74,10 +85,15 @@ export const createPureIngestPathwaysStateMachine = (initialContext: IngestPathw
           invoke: {
             src: 'loadIndexTemplates',
             id: 'loadIndexTemplates',
+
             onDone: {
               target: 'loadingIngestPipelines',
               actions: ['storeIndexTemplates', 'updateGraph'],
             },
+          },
+
+          on: {
+            load: 'loadingSignalData',
           },
         },
 
@@ -85,10 +101,15 @@ export const createPureIngestPathwaysStateMachine = (initialContext: IngestPathw
           invoke: {
             src: 'loadDataStreams',
             id: 'loadDataStreams',
+
             onDone: {
               target: 'loadingIndexTemplates',
               actions: 'storeDataStreams',
             },
+          },
+
+          on: {
+            load: 'loadingSignalData',
           },
         },
       },
@@ -122,7 +143,8 @@ export const createPureIngestPathwaysStateMachine = (initialContext: IngestPathw
             }
 
             return mergeIngestPathwaysData(context.data, {
-              indexTemplates: event.data,
+              indexTemplates: event.data.indexTemplates,
+              ingestPipelines: event.data.ingestPipelines,
             });
           },
         }),
@@ -176,7 +198,6 @@ export const createIngestPathwaysStateMachine = ({
       agents: {},
       indexTemplates: {},
       ingestPipelines: {},
-      relations: [],
     },
     graph: {
       elements: [],
@@ -203,13 +224,19 @@ export interface IngestPathwaysServices {
     data: any;
   };
   loadSignalData: {
-    data: IngestPathwaysData;
+    data: {
+      agents: Record<string, Agent>;
+      dataStreams: Record<string, DataStreamStub>;
+    };
   };
   loadDataStreams: {
     data: Record<string, DataStream>;
   };
   loadIndexTemplates: {
-    data: Record<string, IndexTemplate>;
+    data: {
+      indexTemplates: Record<string, IndexTemplate>;
+      ingestPipelines: Record<string, IngestPipelineStub>;
+    };
   };
   loadIngestPipelines: {
     data: Record<string, IngestPipeline>;

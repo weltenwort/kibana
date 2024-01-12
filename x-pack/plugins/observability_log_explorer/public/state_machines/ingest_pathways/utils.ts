@@ -17,5 +17,4 @@ export const mergeIngestPathwaysData = (
   dataStreams: { ...firstData.dataStreams, ...(secondData.dataStreams ?? {}) },
   indexTemplates: { ...firstData.indexTemplates, ...(secondData.indexTemplates ?? {}) },
   ingestPipelines: { ...firstData.ingestPipelines, ...(secondData.ingestPipelines ?? {}) },
-  relations: [...firstData.relations, ...(secondData.relations ?? [])],
 });

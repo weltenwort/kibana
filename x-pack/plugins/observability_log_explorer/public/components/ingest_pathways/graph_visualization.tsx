@@ -7,10 +7,10 @@
 
 import { css } from '@emotion/react';
 import { useActor } from '@xstate/react';
-import cytoscape, { CytoscapeOptions, NodeSingular } from 'cytoscape';
+import cytoscape, { CytoscapeOptions, EdgeSingular, NodeSingular } from 'cytoscape';
 import dagre from 'cytoscape-dagre';
 import React, { useEffect, useState } from 'react';
-import { useIngestPathwaysPageStateContext } from '../../state_machines/ingest_pathways';
+import { Agent, useIngestPathwaysPageStateContext } from '../../state_machines/ingest_pathways';
 
 export const ConnectedGraphVisualization = React.memo(() => {
   const [state] = useActor(useIngestPathwaysPageStateContext());
@@ -64,6 +64,8 @@ const initialGraphOptions: CytoscapeOptions & { layout: Record<string, any> } = 
         },
         'text-wrap': 'wrap',
         shape: 'ellipse',
+        'text-valign': 'center',
+        'text-halign': 'left',
       },
     },
     {
@@ -71,6 +73,15 @@ const initialGraphOptions: CytoscapeOptions & { layout: Record<string, any> } = 
       style: {
         label: 'data(dataStream.id)',
         shape: 'hexagon',
+        'text-valign': 'center',
+        'text-halign': 'right',
+      },
+    },
+    {
+      selector: 'node.ingestPipeline',
+      style: {
+        label: 'data(ingestPipeline.id)',
+        shape: 'diamond',
       },
     },
     {
@@ -81,11 +92,24 @@ const initialGraphOptions: CytoscapeOptions & { layout: Record<string, any> } = 
       },
     },
     {
-      selector: 'edge.agentShipsTo',
+      selector: 'edge.shipsTo',
       style: {
-        label: 'data(relation.signalCount)',
         'target-arrow-shape': 'chevron',
         'target-arrow-fill': 'filled',
+      },
+    },
+    {
+      selector: 'edge.agentShipsTo',
+      style: {
+        // label: 'data(shipsTo.signalCount)',
+        width: (edge: EdgeSingular) => {
+          const agent: Agent = edge.data('agent');
+          const totalSignalCount = agent.shipsTo.reduce(
+            (accumulatedSignalCount, { signalCount }) => accumulatedSignalCount + signalCount,
+            0
+          );
+          return 1 + (9.0 / totalSignalCount) * edge.data('shipsTo').signalCount;
+        },
       },
     },
   ],
@@ -93,6 +117,8 @@ const initialGraphOptions: CytoscapeOptions & { layout: Record<string, any> } = 
     name: 'dagre',
     rankDir: 'LR',
     rankSep: 300,
+    nodeSep: 30,
+    ranker: 'longest-path',
   },
 };
 
