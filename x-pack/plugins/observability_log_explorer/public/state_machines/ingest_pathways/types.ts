@@ -48,6 +48,8 @@ export interface IngestPipelineStub {
 export interface IngestPipeline {
   type: 'ingestPipeline';
   id: string;
+  description?: string;
+  processors: unknown[];
 }
 
 export type IngestPipelineEntry = IngestPipeline | IngestPipelineStub;
@@ -61,4 +63,8 @@ export interface Agent {
     dataStreamId: string;
     signalCount: number;
   }>;
+}
+
+export interface GraphSelection {
+  pathwayId: string | null;
 }

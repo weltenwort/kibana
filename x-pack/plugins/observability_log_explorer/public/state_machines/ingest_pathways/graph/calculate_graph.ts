@@ -74,6 +74,7 @@ const convertAgentToGraphElements =
           classes: 'shipsTo agentShipsTo',
           data: {
             id: `relation-${source}-ships-to-${target}`,
+            pathwayId: `pathway-${source}-to-${target}`,
             source,
             target,
             agent,
@@ -100,6 +101,7 @@ const convertAgentToGraphElements =
                   classes: lastEdge.classes,
                   data: {
                     id: `relation-${lastEdge.data.source}-ships-to-${ingestPipelineElementId}`,
+                    pathwayId: lastEdge.data.pathwayId,
                     source: lastEdge.data.source,
                     target: ingestPipelineElementId,
                     shipsTo: lastEdge.data.shipsTo,
@@ -111,6 +113,7 @@ const convertAgentToGraphElements =
                   classes: 'shipsTo',
                   data: {
                     id: `relation-${ingestPipelineElementId}-ships-to-${lastEdge.data.target}`,
+                    pathwayId: lastEdge.data.pathwayId,
                     source: ingestPipelineElementId,
                     target: lastEdge.data.target,
                     shipsTo: {},

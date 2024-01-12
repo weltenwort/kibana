@@ -9,20 +9,47 @@ import { css } from '@emotion/react';
 import { useActor } from '@xstate/react';
 import cytoscape, { CytoscapeOptions, EdgeSingular, NodeSingular } from 'cytoscape';
 import dagre from 'cytoscape-dagre';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Agent, useIngestPathwaysPageStateContext } from '../../state_machines/ingest_pathways';
 
 export const ConnectedGraphVisualization = React.memo(() => {
-  const [state] = useActor(useIngestPathwaysPageStateContext());
+  const [state, send] = useActor(useIngestPathwaysPageStateContext());
 
-  return <GraphVisualization graphOptions={state.context.graph} />;
+  const onSelectPathway = useCallback(
+    (pathwayId: string) => {
+      send({
+        type: 'selectPathway',
+        pathwayId,
+      });
+    },
+    [send]
+  );
+
+  return (
+    <GraphVisualization graphOptions={state.context.graph} onSelectPathway={onSelectPathway} />
+  );
 });
 
 export const GraphVisualization = React.memo(
-  ({ graphOptions }: { graphOptions: CytoscapeOptions }) => {
+  ({
+    graphOptions,
+    onSelectPathway,
+  }: {
+    graphOptions: CytoscapeOptions;
+    onSelectPathway: (pathwayId: string) => void;
+  }) => {
     const [cytoscapeInstance] = useState(() => {
       cytoscape.use(dagre);
       const newCytoscapeInstance = cytoscape(initialGraphOptions);
+      newCytoscapeInstance.on('select', 'edge[pathwayId]', (evt) => {
+        const pathwayId = evt.target.data('pathwayId');
+        // onSelectPathway(pathwayId);
+        // console.log(evt);
+        const edges = evt.cy.$(`edge[pathwayId="${pathwayId}"]`);
+        const nodes = edges.connectedNodes();
+        edges.select();
+        nodes.select();
+      });
       return newCytoscapeInstance;
     });
 
@@ -48,6 +75,7 @@ export const GraphVisualization = React.memo(
 
 const initialGraphOptions: CytoscapeOptions & { layout: Record<string, any> } = {
   elements: [],
+  autoungrabify: true,
   style: [
     {
       selector: '*',

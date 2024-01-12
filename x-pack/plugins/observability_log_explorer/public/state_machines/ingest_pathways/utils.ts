@@ -8,6 +8,7 @@
 import { IngestPathwaysData } from './types';
 
 export const INDEX_MANAGEMENT_PREFIX = '/api/index_management';
+export const INGEST_PIPELINES_PREFIX = '/api/ingest_pipelines';
 
 export const mergeIngestPathwaysData = (
   firstData: IngestPathwaysData,
