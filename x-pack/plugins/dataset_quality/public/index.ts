@@ -9,6 +9,8 @@ import type { PluginInitializerContext } from '@kbn/core/public';
 import { DatasetQualityConfig } from '../common/plugin_config';
 import { DatasetQualityPlugin } from './plugin';
 
+export type { IDataStreamsStatsClient } from './services/data_streams_stats';
+
 export type { DatasetQualityPluginSetup, DatasetQualityPluginStart } from './types';
 
 export function plugin(context: PluginInitializerContext<DatasetQualityConfig>) {

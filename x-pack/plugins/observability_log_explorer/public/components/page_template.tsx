@@ -5,15 +5,17 @@
  * 2.0.
  */
 
-import { EuiPageSectionProps } from '@elastic/eui';
+import { EuiPageHeaderProps, EuiPageSectionProps } from '@elastic/eui';
 import { css } from '@emotion/react';
 import React from 'react';
 import { useKibanaContextForPlugin } from '../utils/use_kibana';
 
 export const ObservabilityLogExplorerPageTemplate = ({
   children,
+  pageHeaderProps,
   pageProps,
 }: React.PropsWithChildren<{
+  pageHeaderProps?: EuiPageHeaderProps;
   pageProps?: EuiPageSectionProps;
 }>) => {
   const {
@@ -22,6 +24,7 @@ export const ObservabilityLogExplorerPageTemplate = ({
 
   return (
     <observabilityShared.navigation.PageTemplate
+      pageHeader={pageHeaderProps}
       pageSectionProps={{ ...pageSectionProps, ...pageProps }}
     >
       {children}

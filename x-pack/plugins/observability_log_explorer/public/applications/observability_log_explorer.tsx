@@ -10,6 +10,7 @@ import { KibanaRenderContextProvider } from '@kbn/react-kibana-context-render';
 import { Route, Router, Routes } from '@kbn/shared-ux-router';
 import React from 'react';
 import ReactDOM from 'react-dom';
+import { IngestPathwaysRoute } from '../routes/ingest_pathways';
 import { DatasetQualityRoute, ObservabilityLogExplorerMainRoute } from '../routes/main';
 import {
   ObservabilityLogExplorerAppMountParameters,
@@ -76,6 +77,7 @@ export const ObservabilityLogExplorerApp = ({
                 exact={true}
                 render={() => <DatasetQualityRoute core={core} />}
               />
+              <Route path="/ingest-pathways" exact component={IngestPathwaysRoute} />
             </Routes>
           </Router>
         </KbnUrlStateStorageFromRouterProvider>
