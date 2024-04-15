@@ -6,11 +6,15 @@
  * Side Public License, v 1.
  */
 
-import { actions, createMachine, interpret, InterpreterFrom, raise } from 'xstate';
+import { DataView, DataViewsServicePublic } from '@kbn/data-views-plugin/public';
+import { SavedSearch, SavedSearchPublicPluginStart } from '@kbn/saved-search-plugin/public';
+import { createMachine } from 'xstate';
+import { resolveSource } from './resolve_source';
+import { ResolvedDataSource } from './source_types';
 
 export const createPureDiscoverMainController = () =>
   createMachine<DiscoverMainControllerContext, DiscoverMainControllerEvent>({
-    /** @xstate-layout N4IgpgJg5mDOIC5QBECWsDGB7AbmATgLICGqAdgMJZkAu+WANgwQHQC2qU+xN5UAyjR5gAxBGpgW5HFgDWkjl2EAFArHQ1Ig4QG0ADAF1EoAA5Z1vasZAAPRAEZ7AThYAmAGwBWd3p-2ALJ5OAMzu7gA0IACeiK7OLE6e3q4AHO7+-o4p-u4AvrmRaJi4BCTkVLT0TKzkqLzEDKgAXnzKxNxsYJr4sGISLLBCmixF2HhEpJTUdIzM+FJkdagNza3txJ3dsPpGSCBmFqhWe3YI9imeLPbpepkpwR6J95ExCEkuwfbBD2meqa56Vz5QroMalSYVGbVea1eqNFpkKBtDpdNQsABm9DYyDA6OIAFcGDRejtrAclsdQKdgikAOxXRK0r4eQFpVwvRCZekpAIhJyOVy0wUpYEgUYlCblaZVOYsfBwRg4Pj8LD4-AYUTiMiSaRySTy2CKsAqtUa0l7cmWMjWU4BYIJWleTyAwVOdzBfwchCO-xXAF6PQpVxOEKeWm00Xi8ZlKaVWasA1GiAm9WiCgACQAggA5ADiAFEAPr8ADyAFUAEoUfPm0zmCnWk6c74sWl6b72PROXzXNK0r3uJz09zh-x6WnZbzt4KR0ESmOQmUJhUMPDJ1WpkQZnMFwvKTMVzOEfMAFXzFf4tf29atNs5ARY33cjmc47C2S9IZSbkBQu+zqcOIRVFMgsAgOBrCjcEpTjaEyRvI5GypRAAFoImiVD6QDANeT-Z9Uk8WdimjCFpXjeZFG4XhEW0TR4MOSlbE5dkMIQFI9BYfwQyHRw3S8Z8ZwKMU5xImCoVlWFlnhNYUS2eiGzvBB-G-fxgj0AVw2cd0gy9NTfW8ZTgicMc0muewiLBSVY3EmpFjhVZEWRDZUR6DEsRxPFCWJeTbybBA3U4tSNKZN0aRY14jPtT4uMCYN2NcZSLPnUjYIkuypIcpF1k2NFMSwNhs2IJUoB4RDaLAHzEMU5TXDcFJjKcNJEhCZ9dMAlhfGU7IeTfLsktE6yl3mRNV2VDcNUqxjTnYtxziZe5+VpYz0NeG5HzSIyR1pP5PHsCMhKgqzF3IuUVzXFMJotBCpsQdwVKA9J-G2jwmU9Vj+V9eLO0CZSBUE-IgA */
+    /** @xstate-layout N4IgpgJg5mDOIC5QBECWsDGB7AbmATgLICGqAdgMJZkAu+WANgwQHQC2qU+xN5UAyjR5gAxBGpgW5HFgDWkjl2EAFArHQ1Ig4QG0ADAF1EoAA5Z1vasZAAPRAEZ7AThYAmAGwBWd6-ue9TvYAzAAs7kEANCAAnoiuri4hjv5OnkFeTgDsQQC+OVFomLgEJORUtPRMrPhwjDh8-FgArvgYouJkktJykjWwdWCNLW36RkggZhaoVuN2CPYheiwAHO6ZziFpme7Lu1GxCJl6ISuenplOIU7uTk56QU55BejYeESklNR0jMz4LH0DCBDVqiCgACQAggA5ADiAFEAPr8ADyAFUAEoUOGjayTVCWMjWOZhewsdwhC4+ZbZC5ndz7RDLRYsEJBeKuc5OZauJmPfIgQqvEofcrfKp-AEMPBA5ogkTg6HwhHKCHoiGEOEAFTh6P4OPGeIJRMQIRCyxWrm2aUu2T01IZ818nhY9iOensPM9myeApexXeZS+lV+UjI+NQxAYqAAXnwAGL0NjIMAAM2ITQYNFgYgkoZk8hYDCwxAgybTGZoymI3DYYE0+Fg+tM5nDM1Ac0cmRdqSCeguHlZHicDs2pJ5CyZSSy2x9gv9pU+FR+rHI4cjMfjiahxHqUB40zI2k0Oc6eZ6obXUejYCrNbragTWDY293++oR7ATYmLaNs0QPhYW5fCcIIggWMJLmOB0uXcFg+08S13B2TxHFWPJ+TILAIDgaw5zeBdRWDAhcR-A9jQQABaekYkQCiuz0Bj7j0VxQMyJle2WWc-XwkUg2XP5FG4XgyAEIRNBIqY21sE1XAdZYliuW51mcJDvGCLiih4wMl3Ff5ailBpZTaCTW0JP8EHktx7GpTxuTdDjhxohBORdYJ4iOdxXTNTwNKFANFzFENJWlYFjINUipLmHYWV8XZ1iZPR3HdB1HEtFhMhQs0PXOVjXF8+deJ0kNV14ddYxEx8k1TdNM3gcLJLM9sZLgxjrPubxPNNB1eyWBYQPiUCnA5TI8v5PDhW0wKVzDUqr03J8X04N9DzEsATN-JqEBCWSnOWXsXVsi4gl2QIuRCdCciAA */
     initial: 'migratingState',
 
     states: {
@@ -18,44 +22,32 @@ export const createPureDiscoverMainController = () =>
         invoke: {
           src: 'migratePersistedState',
           id: 'migratePersistedState',
-          onDone: 'initializingParameters',
+          onDone: 'initializingFromDefaults',
         },
-      },
-
-      initializingParameters: {
-        states: {
-          fromDefaults: {
-            always: 'fromNavigationState',
-            entry: 'initializeDefaultParameters',
-          },
-
-          fromNavigationState: {
-            type: 'final',
-            entry: 'updateParametersFromNavigationState',
-          },
-        },
-
-        initial: 'fromDefaults',
-
-        onDone: 'resolvingSource',
       },
 
       resolvingSource: {
         invoke: {
           src: 'resolveSource',
           id: 'resolveSource',
-          onDone: 'resolvedSource',
+          onDone: {
+            target: 'initializingFromNavigationState',
+            actions: 'storeResolvedSource',
+          },
         },
       },
 
       resolvedSource: {
         on: {
-          CHANGE_SOURCE: 'resolvingSource',
+          CHANGE_SOURCE: {
+            target: 'resolvingSource',
+            actions: 'updateSourceInNavigationState',
+          },
 
           CHANGE_PARAMETERS: {
             target: 'resolvedSource',
             internal: true,
-            actions: ['updateParameters', 'updateNavigationState'],
+            actions: ['storeParameters', 'updateParametersInNavigationState'],
           },
         },
 
@@ -64,14 +56,55 @@ export const createPureDiscoverMainController = () =>
           id: 'profileController',
         },
       },
+
+      initializingFromDefaults: {
+        invoke: {
+          src: 'loadDefaultParameters',
+          id: 'loadDefaultParameters',
+          onDone: {
+            target: 'resolvingSource',
+            actions: 'storeParameters',
+          },
+        },
+      },
+
+      initializingFromNavigationState: {
+        invoke: {
+          src: 'initializeParametersFromNavigationState',
+          id: 'initializeParametersFromNavigationState',
+          onDone: {
+            target: 'resolvedSource',
+            actions: 'storeParameters',
+          },
+        },
+      },
     },
     id: 'DiscoverMainController',
+    predictableActionArguments: true,
   });
 
-export const createDiscoverMainController = () => createPureDiscoverMainController().withConfig({});
+interface DiscoverMainControllerDependencies {
+  getNavigationState: () => void;
+  setNavigationState: () => void;
+  dataViews: DataViewsServicePublic;
+  savedSearches: SavedSearchPublicPluginStart;
+}
+
+export const createDiscoverMainController = ({
+  dataViews,
+  savedSearches,
+}: DiscoverMainControllerDependencies) =>
+  createPureDiscoverMainController().withConfig({
+    services: {
+      resolveSource: (context, event) => {
+        const source = null; // TODO: get source from navigation state
+        return resolveSource({ dataViews, savedSearches })(source);
+      },
+    },
+  });
 
 export interface DiscoverMainControllerContext {
-  source: unknown;
+  source: ResolvedDataSource;
   parameters: unknown;
 }
 
