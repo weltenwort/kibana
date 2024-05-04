@@ -74,7 +74,6 @@ export default function ({ getService, getPageObjects }: FtrProviderContext) {
             },
             sort: [['@timestamp', 'desc']],
             columns: [],
-            index: 'logstash-*',
             interval: 'auto',
             filters: [],
             dataViewId: 'logstash-*',
