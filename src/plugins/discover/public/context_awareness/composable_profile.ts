@@ -6,18 +6,12 @@
  * Side Public License, v 1.
  */
 
-type ComposableAccessor<T> = (getPrevious: T) => T;
-
-// export interface ComposableProfile {
-//   getTopNavItems?: ComposableAccessor<() => TopNavItem[]>;
-//   getDefaultColumns?: ComposableAccessor<() => Column[]>;
-//   getFlyout?: ComposableAccessor<() => FlyoutComponent>;
-// }
+export type ComposableAccessor<T> = (getPrevious: T) => T;
 
 export type AccessorFor<T> = T extends ComposableAccessor<infer U> ? U : never;
 
 export interface Profile {
-  getTopNavItems: () => TopNavItem[];
+  getTopNavItems: (count: number) => TopNavItem[];
   getDefaultColumns: () => Column[];
   getFlyout: () => FlyoutComponent;
 }
@@ -35,6 +29,7 @@ export const getMergedAccessor =
     }, baseProfile[key]);
 
 // placeholders
+
 interface TopNavItem {
   __brand: 'TopNavItem';
   name: string;
