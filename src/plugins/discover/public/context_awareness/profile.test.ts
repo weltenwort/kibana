@@ -6,58 +6,50 @@
  * Side Public License, v 1.
  */
 
-import { ComposableProfile, getMergedAccessor, Profile } from './profile';
+import { BehaviorSubject, combineLatest, map } from 'rxjs';
+import { ComposableProfile } from './composable_profile';
+import {
+  DataSourceCategory,
+  DataSourceContextProviderParams,
+  RootContextProviderParams,
+  SolutionType,
+} from './context';
+import { resolveDataSourceContext, resolveRootContext } from './pure_context';
 
-test('getMergedAccessor works with an empty list of profiles', () => {
-  const baseProfile: Profile = {
-    getTopNavItems: () => [{ __brand: 'TopNavItem', name: 'BaseTopNavItem1' }],
-    getDefaultColumns: () => [{ __brand: 'Columns', name: 'BaseColumn1' }],
-    getFlyout: () => ({ __brand: 'FlyoutComponent', name: 'BaseFlyoutComponent' }),
-  };
-
-  const getTopNavItems = getMergedAccessor('getTopNavItems', baseProfile)([]);
-  const getDefaultColumns = getMergedAccessor('getDefaultColumns', baseProfile)([]);
-  const getFlyout = getMergedAccessor('getFlyout', baseProfile)([]);
-
-  expect(getTopNavItems()).toEqual([{ __brand: 'TopNavItem', name: 'BaseTopNavItem1' }]);
-  expect(getDefaultColumns()).toEqual([{ __brand: 'Columns', name: 'BaseColumn1' }]);
-  expect(getFlyout()).toEqual({ __brand: 'FlyoutComponent', name: 'BaseFlyoutComponent' });
-});
-
-test('getMergedAccessor works with a list of profiles', () => {
-  const baseProfile: Profile = {
-    getTopNavItems: () => [{ __brand: 'TopNavItem', name: 'BaseTopNavItem1' }],
-    getDefaultColumns: () => [{ __brand: 'Columns', name: 'BaseColumn1' }],
-    getFlyout: () => ({ __brand: 'FlyoutComponent', name: 'BaseFlyoutComponent' }),
-  };
-
-  const profile1: ComposableProfile = {
-    getTopNavItems: () => () => [{ __brand: 'TopNavItem', name: 'Profile1TopNavItem1' }],
-  };
-
-  const profile2: ComposableProfile = {
-    getTopNavItems: (previousGetTopNavItems) => () =>
-      [...previousGetTopNavItems(), { __brand: 'TopNavItem', name: 'Profile2TopNavItem1' }],
-    getDefaultColumns: (previousGetDefaultColumns) => () =>
-      [...previousGetDefaultColumns(), { __brand: 'Columns', name: 'Profile2Column1' }],
-  };
-
-  const profiles = [profile1, profile2];
-
-  const getTopNavItems = getMergedAccessor('getTopNavItems', baseProfile)(profiles);
-  const getDefaultColumns = getMergedAccessor('getDefaultColumns', baseProfile)(profiles);
-  const getFlyout = getMergedAccessor('getFlyout', baseProfile)(profiles);
-
-  expect(getTopNavItems()).toEqual([
-    { __brand: 'TopNavItem', name: 'Profile1TopNavItem1' },
-    { __brand: 'TopNavItem', name: 'Profile2TopNavItem1' },
-  ]);
-  expect(getDefaultColumns()).toEqual([
-    { __brand: 'Columns', name: 'BaseColumn1' },
-    { __brand: 'Columns', name: 'Profile2Column1' },
-  ]);
-  expect(getFlyout()).toEqual({
-    __brand: 'FlyoutComponent',
-    name: 'BaseFlyoutComponent',
+test('can react to context changes', async () => {
+  const rootContextParams$ = new BehaviorSubject<RootContextProviderParams>({
+    solutionNavId: 'search',
   });
+
+  const rootContext$ = rootContextParams$.pipe(map(resolveRootContext));
+
+  const dataSourceContextParams$ = new BehaviorSubject<DataSourceContextProviderParams>({
+    dataSource: DataSourceCategory.Logs,
+  });
+
+  const dataSourceContext$ = dataSourceContextParams$.pipe(map(resolveDataSourceContext));
+
+  const rootProfile$ = rootContext$.pipe(
+    map((context) => {
+      if (context.solutionType === SolutionType.Search) {
+        return searchProfile;
+      }
+    })
+  );
+
+  const dataSourceProfile$ = dataSourceContext$.pipe(
+    map((context) => {
+      if (context.category === DataSourceCategory.Logs) {
+        return logsSourceProfile;
+      }
+    })
+  );
+
+  const profiles$ = combineLatest([rootProfile$, dataSourceProfile$]);
 });
+
+const searchProfile: ComposableProfile = {
+  getTopNavItems: () => () => [{ __brand: 'TopNavItem', name: 'SearchTopNavItem1' }],
+};
+
+const logsSourceProfile: ComposableProfile = {};
