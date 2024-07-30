@@ -41,7 +41,7 @@ export const LogsAnalysis: React.FC<LogsAnalysisProps> = ({ dateRange, logsAnaly
   }
 
   if (analysis.error) {
-    return <div>Error: {analysis.error.message}</div>;
+    return <LogAnalysisError analysisError={analysis.error} onAnalyzeLogs={performAnalysis} />;
   }
 
   if (!analysis.value) {
@@ -52,23 +52,44 @@ export const LogsAnalysis: React.FC<LogsAnalysisProps> = ({ dateRange, logsAnaly
   return <LogAnalysisResults analysisResults={analysis.value} onAnalyzeLogs={performAnalysis} />;
 };
 
-export const LogsAnalysisEmptyState: React.FC<{
+const LogsAnalysisEmptyState: React.FC<{
   onAnalyzeLogs: () => void;
 }> = ({ onAnalyzeLogs }) => {
-  return <EuiButton onClick={() => onAnalyzeLogs()}>Analyze Logs</EuiButton>;
+  return (
+    <div>
+      <LogAnalysisControls onAnalyzeLogs={onAnalyzeLogs} />
+    </div>
+  );
 };
 
-export const LogAnalysisResults: React.FC<{
-  analysisResults: LogRateAnalysisResult;
+const LogAnalysisError: React.FC<{
+  analysisError: Error;
+  onAnalyzeLogs: () => void;
+}> = ({ analysisError, onAnalyzeLogs }) => {
+  return (
+    <div>
+      <LogAnalysisControls onAnalyzeLogs={onAnalyzeLogs} />
+      <pre>Error: {analysisError.message}</pre>
+    </div>
+  );
+};
 
+const LogAnalysisResults: React.FC<{
+  analysisResults: LogRateAnalysisResult;
   onAnalyzeLogs: () => void;
 }> = ({ analysisResults, onAnalyzeLogs }) => {
   return (
     <div>
-      <div>
-        <EuiButton onClick={() => onAnalyzeLogs()}>Analyze Logs</EuiButton>;
-      </div>
-      <pre>{`Analysis results: ${JSON.stringify(analysisResults, undefined, 2)}`}</pre>;
+      <LogAnalysisControls onAnalyzeLogs={onAnalyzeLogs} />
+      <pre>{`Analysis results: ${JSON.stringify(analysisResults, undefined, 2)}`}</pre>
+    </div>
+  );
+};
+
+const LogAnalysisControls: React.FC<{ onAnalyzeLogs: () => void }> = ({ onAnalyzeLogs }) => {
+  return (
+    <div>
+      <EuiButton onClick={() => onAnalyzeLogs()}>Analyze Logs</EuiButton>
     </div>
   );
 };
