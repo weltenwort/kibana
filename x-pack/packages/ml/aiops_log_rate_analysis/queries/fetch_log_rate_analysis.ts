@@ -21,6 +21,7 @@ import { fetchChangePointDetection } from './fetch_change_point_detection';
 import { fetchIndexInfo } from './fetch_index_info';
 import { fetchSignificantCategories } from './fetch_significant_categories';
 import { fetchSignificantTermPValues } from './fetch_significant_term_p_values';
+import type { WindowParameters } from '../window_parameters';
 
 // Don't use more than 5 here otherwise Kibana will emit an error
 // regarding a limit of abort signal listeners of more than 10.
@@ -60,6 +61,13 @@ export interface SimpleSignificantItem {
   logRateChange: string;
 }
 
+export interface LogRateAnalysisResult {
+  logRateChange: LogRateChange;
+  significantItems: SimpleSignificantItem[];
+  dateHistogramBuckets: Record<string, number>;
+  windowParameters: WindowParameters;
+}
+
 /**
  * Asynchronously fetches log rate analysis from an Elasticsearch client.
  * Use this function if you want to fetch log rate analysis in other contexts
@@ -93,7 +101,7 @@ export const fetchLogRateAnalysis = async ({
     keywordFieldCandidates?: string[];
     textFieldCandidates?: string[];
   };
-}) => {
+}): Promise<LogRateAnalysisResult> => {
   const debugStartTime = Date.now();
 
   const earliestMs = dateMath.parse(args.start)?.valueOf();

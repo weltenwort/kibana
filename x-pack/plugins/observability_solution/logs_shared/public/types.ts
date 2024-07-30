@@ -14,7 +14,9 @@ import type { SharePluginSetup, SharePluginStart } from '@kbn/share-plugin/publi
 import type { UiActionsStart } from '@kbn/ui-actions-plugin/public';
 
 import { LogsSharedLocators } from '../common/locators';
+import { LogsOverviewProps } from './components/logs_overview';
 import type { LogAIAssistantProps } from './components/log_ai_assistant/log_ai_assistant';
+import { LogAnalysisServiceStart } from './services/log_analysis';
 // import type { OsqueryPluginStart } from '../../osquery/public';
 import { LogViewsServiceSetup, LogViewsServiceStart } from './services/log_views';
 
@@ -26,7 +28,9 @@ export interface LogsSharedClientSetupExports {
 
 export interface LogsSharedClientStartExports {
   logViews: LogViewsServiceStart;
+  logAnalysis: LogAnalysisServiceStart;
   LogAIAssistant?: (props: Omit<LogAIAssistantProps, 'observabilityAIAssistant'>) => JSX.Element;
+  LogsOverview: React.ComponentType<LogsOverviewProps>;
 }
 
 export interface LogsSharedClientSetupDeps {

@@ -11,7 +11,9 @@ import {
   NodeLogsLocatorDefinition,
   TraceLogsLocatorDefinition,
 } from '../common/locators';
+import { createLogsOverview } from './components/logs_overview';
 import { createLogAIAssistant, createLogsAIAssistantRenderer } from './components/log_ai_assistant';
+import { LogAnalysisService } from './services/log_analysis';
 import { LogViewsService } from './services/log_views';
 import {
   LogsSharedClientCoreSetup,
@@ -22,9 +24,11 @@ import {
 
 export class LogsSharedPlugin implements LogsSharedClientPluginClass {
   private logViews: LogViewsService;
+  private logAnalysis: LogAnalysisService;
 
   constructor() {
     this.logViews = new LogViewsService();
+    this.logAnalysis = new LogAnalysisService();
   }
 
   public setup(_: LogsSharedClientCoreSetup, pluginsSetup: LogsSharedClientSetupDeps) {
@@ -60,9 +64,15 @@ export class LogsSharedPlugin implements LogsSharedClientPluginClass {
       search: data.search,
     });
 
+    const logAnalysis = this.logAnalysis.start({ http });
+
+    const LogsOverview = createLogsOverview({ logAnalysis });
+
     if (!observabilityAIAssistant) {
       return {
         logViews,
+        logAnalysis,
+        LogsOverview,
       };
     }
 
@@ -75,7 +85,9 @@ export class LogsSharedPlugin implements LogsSharedClientPluginClass {
 
     return {
       logViews,
+      logAnalysis,
       LogAIAssistant,
+      LogsOverview,
     };
   }
 

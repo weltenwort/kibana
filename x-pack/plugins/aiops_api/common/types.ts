@@ -6,6 +6,7 @@
  */
 
 import type {
+  LogRateAnalysisResult,
   LogRateChange,
   SimpleSignificantItem,
 } from '@kbn/aiops-log-rate-analysis/queries/fetch_log_rate_analysis';
@@ -32,3 +33,5 @@ export interface GetAiopsLogRateAnalysisFunctionResponse {
     significantItems: SimpleSignificantItem[];
   };
 }
+
+export type AiopsLogRateAnalysisAPIResponse = LogRateAnalysisResult;
