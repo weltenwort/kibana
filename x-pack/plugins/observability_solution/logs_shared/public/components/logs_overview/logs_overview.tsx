@@ -6,8 +6,7 @@
  */
 
 import React from 'react';
-import type { LogAnalysisServiceStart } from '../../services/log_analysis';
-import { LogsAnalysis } from './logs_analysis';
+import { LogsAnalysis, LogsAnalysisDependencies } from './logs_analysis';
 
 export interface LogsOverviewProps {
   dateRange: {
@@ -16,15 +15,13 @@ export interface LogsOverviewProps {
   };
 }
 
-export interface LogsOverviewDeps {
-  logAnalysis: LogAnalysisServiceStart;
-}
+export type LogsOverviewDeps = LogsAnalysisDependencies;
 
-export const LogsOverview: React.FC<LogsOverviewProps & LogsOverviewDeps> = ({
+export const LogsOverview: React.FC<LogsOverviewProps & { dependencies: LogsOverviewDeps }> = ({
   dateRange,
-  logAnalysis,
+  dependencies,
 }) => {
-  return <LogsAnalysis dateRange={dateRange} logsAnalysis={logAnalysis} />;
+  return <LogsAnalysis dateRange={dateRange} dependencies={dependencies} />;
 };
 
 // for dynamic imports

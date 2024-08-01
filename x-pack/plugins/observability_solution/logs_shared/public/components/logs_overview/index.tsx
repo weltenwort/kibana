@@ -14,4 +14,4 @@ export type { LogsOverviewProps } from './logs_overview';
 export const LogsOverviewLazy = dynamic(() => import('./logs_overview'));
 
 export const createLogsOverview = (deps: LogsOverviewDeps) => (props: LogsOverviewProps) =>
-  <LogsOverviewLazy {...deps} {...props} />;
+  <LogsOverviewLazy dependencies={deps} {...props} />;

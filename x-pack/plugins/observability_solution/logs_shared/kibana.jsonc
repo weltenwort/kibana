@@ -7,11 +7,16 @@
     "id": "logsShared",
     "server": true,
     "browser": true,
-    "configPath": ["xpack", "logs_shared"],
+    "configPath": [
+      "xpack",
+      "logs_shared"
+    ],
     "requiredPlugins": [
+      "charts",
       "data",
       "dataViews",
       "discoverShared",
+      "fieldFormats",
       "usageCollection",
       "observabilityShared",
       "share"
@@ -19,7 +24,12 @@
     "optionalPlugins": [
       "observabilityAIAssistant",
     ],
-    "requiredBundles": ["kibanaUtils", "kibanaReact"],
-    "extraPublicDirs": ["common"]
+    "requiredBundles": [
+      "kibanaUtils",
+      "kibanaReact"
+    ],
+    "extraPublicDirs": [
+      "common"
+    ]
   }
 }

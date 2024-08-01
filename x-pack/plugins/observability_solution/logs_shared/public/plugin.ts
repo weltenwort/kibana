@@ -55,8 +55,9 @@ export class LogsSharedPlugin implements LogsSharedClientPluginClass {
   }
 
   public start(core: CoreStart, plugins: LogsSharedClientStartDeps) {
-    const { http } = core;
-    const { data, dataViews, discoverShared, observabilityAIAssistant } = plugins;
+    const { http, uiSettings } = core;
+    const { charts, data, dataViews, discoverShared, fieldFormats, observabilityAIAssistant } =
+      plugins;
 
     const logViews = this.logViews.start({
       http,
@@ -64,14 +65,19 @@ export class LogsSharedPlugin implements LogsSharedClientPluginClass {
       search: data.search,
     });
 
-    const logAnalysis = this.logAnalysis.start({ http });
+    const logsAnalysis = this.logAnalysis.start({ http });
 
-    const LogsOverview = createLogsOverview({ logAnalysis });
+    const LogsOverview = createLogsOverview({
+      charts,
+      fieldFormats,
+      logsAnalysis,
+      uiSettings,
+    });
 
     if (!observabilityAIAssistant) {
       return {
         logViews,
-        logAnalysis,
+        logsAnalysis,
         LogsOverview,
       };
     }
@@ -85,8 +91,8 @@ export class LogsSharedPlugin implements LogsSharedClientPluginClass {
 
     return {
       logViews,
-      logAnalysis,
       LogAIAssistant,
+      logsAnalysis,
       LogsOverview,
     };
   }

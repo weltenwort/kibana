@@ -10,23 +10,34 @@
 
 import { EuiButton } from '@elastic/eui';
 import { AiopsLogRateAnalysisAPIResponse } from '@kbn/aiops-api-plugin/common';
+import { SimpleAnalysisResultsTable, SimpleDocumentCountChart } from '@kbn/aiops-components';
+import { ChartsPluginStart } from '@kbn/charts-plugin/public';
+import { IUiSettingsClient } from '@kbn/core-ui-settings-browser';
+import { FieldFormatsStart } from '@kbn/field-formats-plugin/public';
 import React from 'react';
 import useAsyncFn from 'react-use/lib/useAsyncFn';
 import type { LogAnalysisServiceStart } from '../../services/log_analysis';
 
 type LogRateAnalysisResult = AiopsLogRateAnalysisAPIResponse;
 
+export interface LogsAnalysisDependencies {
+  charts: ChartsPluginStart;
+  fieldFormats: FieldFormatsStart;
+  logsAnalysis: LogAnalysisServiceStart;
+  uiSettings: IUiSettingsClient;
+}
+
 export interface LogsAnalysisProps {
   dateRange: {
     from: string;
     to: string;
   };
-  logsAnalysis: LogAnalysisServiceStart;
+  dependencies: LogsAnalysisDependencies;
 }
 
-export const LogsAnalysis: React.FC<LogsAnalysisProps> = ({ dateRange, logsAnalysis }) => {
+export const LogsAnalysis: React.FC<LogsAnalysisProps> = ({ dateRange, dependencies }) => {
   const [analysis, performAnalysis] = useAsyncFn(async () => {
-    return await logsAnalysis.client.getLogRateAnalysis({
+    return await dependencies.logsAnalysis.client.getLogRateAnalysis({
       start: dateRange.from,
       end: dateRange.to,
       index: 'logs-*-*',
@@ -34,7 +45,7 @@ export const LogsAnalysis: React.FC<LogsAnalysisProps> = ({ dateRange, logsAnaly
       keywordFieldCandidates: ['host.name', 'service.name'],
       textFieldCandidates: ['message'],
     });
-  }, [dateRange.from, dateRange.to, logsAnalysis]);
+  }, [dateRange.from, dateRange.to, dependencies.logsAnalysis]);
 
   if (analysis.loading) {
     return <div>Loading...</div>;
@@ -49,7 +60,13 @@ export const LogsAnalysis: React.FC<LogsAnalysisProps> = ({ dateRange, logsAnaly
   }
 
   // TODO: show analysis results
-  return <LogAnalysisResults analysisResults={analysis.value} onAnalyzeLogs={performAnalysis} />;
+  return (
+    <LogAnalysisResults
+      analysisResults={analysis.value}
+      dependencies={dependencies}
+      onAnalyzeLogs={performAnalysis}
+    />
+  );
 };
 
 const LogsAnalysisEmptyState: React.FC<{
@@ -76,11 +93,26 @@ const LogAnalysisError: React.FC<{
 
 const LogAnalysisResults: React.FC<{
   analysisResults: LogRateAnalysisResult;
+  dependencies: LogsAnalysisDependencies;
   onAnalyzeLogs: () => void;
-}> = ({ analysisResults, onAnalyzeLogs }) => {
+}> = ({ analysisResults, dependencies: { charts, fieldFormats, uiSettings }, onAnalyzeLogs }) => {
   return (
     <div>
       <LogAnalysisControls onAnalyzeLogs={onAnalyzeLogs} />
+      <SimpleDocumentCountChart
+        dependencies={{
+          charts,
+          fieldFormats,
+          uiSettings,
+        }}
+        dateHistogram={analysisResults.dateHistogramBuckets}
+        changePoint={{
+          ...analysisResults.logRateChange.extendedChangePoint,
+          key: 0,
+          type: 'spike',
+        }}
+      />
+      <SimpleAnalysisResultsTable tableItems={analysisResults.significantItems} />
       <pre>{`Analysis results: ${JSON.stringify(analysisResults, undefined, 2)}`}</pre>
     </div>
   );

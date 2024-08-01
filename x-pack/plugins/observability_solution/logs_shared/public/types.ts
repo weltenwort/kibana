@@ -5,6 +5,7 @@
  * 2.0.
  */
 
+import type { ChartsPluginStart } from '@kbn/charts-plugin/public';
 import type { CoreSetup, CoreStart, Plugin as PluginClass } from '@kbn/core/public';
 import type { DataPublicPluginStart } from '@kbn/data-plugin/public';
 import type { DataViewsPublicPluginStart } from '@kbn/data-views-plugin/public';
@@ -12,13 +13,13 @@ import type { DiscoverSharedPublicStart } from '@kbn/discover-shared-plugin/publ
 import type { ObservabilityAIAssistantPublicStart } from '@kbn/observability-ai-assistant-plugin/public';
 import type { SharePluginSetup, SharePluginStart } from '@kbn/share-plugin/public';
 import type { UiActionsStart } from '@kbn/ui-actions-plugin/public';
-
-import { LogsSharedLocators } from '../common/locators';
-import { LogsOverviewProps } from './components/logs_overview';
+import { FieldFormatsStart } from '@kbn/field-formats-plugin/public';
+import type { LogsSharedLocators } from '../common/locators';
 import type { LogAIAssistantProps } from './components/log_ai_assistant/log_ai_assistant';
-import { LogAnalysisServiceStart } from './services/log_analysis';
+import type { LogsOverviewProps } from './components/logs_overview';
+import type { LogAnalysisServiceStart } from './services/log_analysis';
 // import type { OsqueryPluginStart } from '../../osquery/public';
-import { LogViewsServiceSetup, LogViewsServiceStart } from './services/log_views';
+import type { LogViewsServiceSetup, LogViewsServiceStart } from './services/log_views';
 
 // Our own setup and start contract values
 export interface LogsSharedClientSetupExports {
@@ -28,7 +29,7 @@ export interface LogsSharedClientSetupExports {
 
 export interface LogsSharedClientStartExports {
   logViews: LogViewsServiceStart;
-  logAnalysis: LogAnalysisServiceStart;
+  logsAnalysis: LogAnalysisServiceStart;
   LogAIAssistant?: (props: Omit<LogAIAssistantProps, 'observabilityAIAssistant'>) => JSX.Element;
   LogsOverview: React.ComponentType<LogsOverviewProps>;
 }
@@ -38,9 +39,11 @@ export interface LogsSharedClientSetupDeps {
 }
 
 export interface LogsSharedClientStartDeps {
+  charts: ChartsPluginStart;
   data: DataPublicPluginStart;
   dataViews: DataViewsPublicPluginStart;
   discoverShared: DiscoverSharedPublicStart;
+  fieldFormats: FieldFormatsStart;
   observabilityAIAssistant?: ObservabilityAIAssistantPublicStart;
   share: SharePluginStart;
   uiActions: UiActionsStart;
