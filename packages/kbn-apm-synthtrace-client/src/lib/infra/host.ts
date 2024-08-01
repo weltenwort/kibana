@@ -137,11 +137,10 @@ export function host(name: string): Host {
   });
 }
 
-export function minimalHost(name: string, extraFields: Partial<HostDocument> = {}): Host {
+export function minimalHost(name: string): Host {
   return new Host({
     'agent.id': 'synthtrace',
     'host.hostname': name,
     'host.name': name,
-    ...extraFields,
   });
 }

@@ -7,10 +7,17 @@
  */
 import { Faker, faker } from '@faker-js/faker';
 
-type LogMessageGenerator = (f: Faker) => string;
+export type LogMessageGenerator = (f: Faker) => string;
 
-export const unstructuredLogMessageGenerators: LogMessageGenerator[] = [
-  (f: Faker) =>
+/**
+ * Ensures the type safety of the log message generators.
+ */
+const ensureGeneratorType = <T extends Record<string, LogMessageGenerator>>(generators: T): T => {
+  return generators;
+};
+
+export const unstructuredLogMessageGenerators = ensureGeneratorType({
+  httpAccess: (f: Faker) =>
     `${f.internet.ip()} - - [${f.date
       .past()
       .toISOString()
@@ -21,24 +28,38 @@ export const unstructuredLogMessageGenerators: LogMessageGenerator[] = [
       )}] "${f.internet.httpMethod()} ${f.internet.url()} HTTP/1.1" ${f.helpers.arrayElement([
       200, 301, 404, 500,
     ])} ${f.number.int({ min: 100, max: 5000 })}`,
-  (f: Faker) =>
+  dbOperation: (f: Faker) =>
     `${f.database.engine()}: ${f.database.column()} ${f.helpers.arrayElement([
       'created',
       'updated',
       'deleted',
       'inserted',
     ])} successfully ${f.number.int({ max: 100000 })} times`,
-  (f: Faker) =>
+  taskStatus: (f: Faker) =>
     `${f.hacker.noun()}: ${f.word.words()} ${f.helpers.arrayElement([
       'triggered',
       'executed',
       'processed',
       'handled',
     ])} successfully at ${f.date.recent().toISOString()}`,
-  (f: Faker) => `[${f.date.recent().toISOString()}] ${f.hacker.ingverb()} ${f.hacker.noun()}`,
-];
+  error: (f: Faker) =>
+    `${f.helpers.arrayElement([
+      'Error',
+      'Exception',
+      'Failure',
+      'Crash',
+      'Bug',
+      'Issue',
+    ])}: ${f.hacker.phrase()}`,
+  restart: (f: Faker) =>
+    `Service ${f.database.engine()} restarted ${f.helpers.arrayElement([
+      'successfully',
+      'with errors',
+      'with warnings',
+    ])}`,
+});
 
-export const generateUnstructuredLogMessage = (
-  f: Faker = faker,
-  generators: LogMessageGenerator[] = unstructuredLogMessageGenerators
-): string => f.helpers.arrayElement(generators)(f);
+export const generateUnstructuredLogMessage =
+  (generators: LogMessageGenerator[] = Object.values(unstructuredLogMessageGenerators)) =>
+  (f: Faker = faker): string =>
+    f.helpers.arrayElement(generators)(f);

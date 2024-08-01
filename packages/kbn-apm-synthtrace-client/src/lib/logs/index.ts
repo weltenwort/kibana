@@ -96,6 +96,23 @@ function create(): Log {
   });
 }
 
+function createMinimal({
+  dataset = 'synth',
+  namespace = 'default',
+}: {
+  dataset?: string;
+  namespace?: string;
+} = {}): Log {
+  return new Log({
+    'input.type': 'logs',
+    'data_stream.namespace': namespace,
+    'data_stream.type': 'logs',
+    'data_stream.dataset': dataset,
+    'event.dataset': dataset,
+  });
+}
+
 export const log = {
   create,
+  createMinimal,
 };

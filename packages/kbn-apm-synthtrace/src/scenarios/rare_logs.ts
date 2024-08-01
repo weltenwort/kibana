@@ -5,17 +5,14 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-import {
-  infra,
-  LogDocument,
-  log,
-  generateShortId,
-  generateLongId,
-} from '@kbn/apm-synthtrace-client';
+import { infra, LogDocument, log, generateShortId } from '@kbn/apm-synthtrace-client';
 import { fakerEN as faker } from '@faker-js/faker';
 import { Scenario } from '../cli/scenario';
 import { withClient } from '../lib/utils/with_client';
-import { generateUnstructuredLogMessage } from './helpers/unstructured_logs';
+import {
+  generateUnstructuredLogMessage,
+  unstructuredLogMessageGenerators,
+} from './helpers/unstructured_logs';
 
 const scenario: Scenario<LogDocument> = async (runOptions) => {
   return {
@@ -55,9 +52,8 @@ const scenario: Scenario<LogDocument> = async (runOptions) => {
         },
       ];
 
-      const hostDefinitions = [
+      const hostEntities = [
         {
-          'host.hostname': 'host-1',
           'host.name': 'host-1',
           'agent.id': 'synth-agent-1',
           'agent.name': 'nodejs',
@@ -66,7 +62,6 @@ const scenario: Scenario<LogDocument> = async (runOptions) => {
           ...clusterDefinions[0],
         },
         {
-          'host.hostname': 'host-2',
           'host.name': 'host-2',
           'agent.id': 'synth-agent-2',
           'agent.name': 'custom',
@@ -75,7 +70,6 @@ const scenario: Scenario<LogDocument> = async (runOptions) => {
           ...clusterDefinions[1],
         },
         {
-          'host.hostname': 'host-3',
           'host.name': 'host-3',
           'agent.id': 'synth-agent-3',
           'agent.name': 'python',
@@ -83,65 +77,88 @@ const scenario: Scenario<LogDocument> = async (runOptions) => {
           'orchestrator.resource.id': generateShortId(),
           ...clusterDefinions[2],
         },
-      ];
+      ].map((hostDefinition) =>
+        infra.minimalHost(hostDefinition['host.name']).overrides(hostDefinition)
+      );
 
       const serviceNames = Array(3)
         .fill(null)
         .map((_, idx) => `synth-service-${idx}`);
 
+      const backgroundRatio = 0.95;
+
       const backgroundLogs = range
         .interval('1s')
         .rate(1)
         .generator((timestamp) => {
-          const hostDefinition = faker.helpers.arrayElement(hostDefinitions);
+          const entity = faker.helpers.arrayElement(hostEntities);
           const serviceName = faker.helpers.arrayElement(serviceNames);
           const level = faker.helpers.arrayElement(LOG_LEVELS);
-          const message = generateUnstructuredLogMessage(faker);
+          const message = generateBackgroundLogMessage(faker);
+
+          // Skip some logs to reduce uniformity
+          if (!faker.datatype.boolean(backgroundRatio)) {
+            return [];
+          }
 
           return [
             log
-              .create()
-              .message(message.replace('<random>', generateShortId()))
+              .createMinimal()
+              .message(message)
               .logLevel(level)
               .service(serviceName)
-              .hostName(hostDefinition['host.name'])
-              .defaults({
-                ...hostDefinition,
-                'trace.id': generateShortId(),
-                'container.name': `${serviceName}-${generateShortId()}`,
-                'log.file.path': `/logs/${generateLongId()}/${serviceName}.log`,
+              .overrides({
+                ...entity.fields,
               })
               .timestamp(timestamp),
           ];
         });
 
-      const hosts = range
+      const foregroundLogs = range
+        .interval('1s')
+        .rate(1)
+        .generator((timestamp) => {
+          const entity = hostEntities[0];
+          const serviceName = faker.helpers.arrayElement(serviceNames);
+          const level = faker.helpers.arrayElement(LOG_LEVELS);
+          const message = generateRareLogMessage(faker);
+
+          // Skip some logs to reduce uniformity
+          if (!faker.datatype.boolean(1 - backgroundRatio)) {
+            return [];
+          }
+
+          return [
+            log
+              .createMinimal()
+              .message(message)
+              .logLevel(level)
+              .service(serviceName)
+              .overrides({
+                ...entity.fields,
+              })
+              .timestamp(timestamp),
+          ];
+        });
+
+      const hostMetricDocuments = range
         .interval('30s')
         .rate(1)
         .generator((timestamp) =>
-          hostDefinitions.flatMap((hostDefinition) => {
-            const host = infra.minimalHost(hostDefinition['host.name'], hostDefinition);
-
-            return [
-              host.cpu().timestamp(timestamp),
-              host.memory().timestamp(timestamp),
-              host.network().timestamp(timestamp),
-              host.load().timestamp(timestamp),
-              host.filesystem().timestamp(timestamp),
-              host.diskio().timestamp(timestamp),
-            ];
+          hostEntities.flatMap((entity) => {
+            return [entity.cpu().timestamp(timestamp)];
           })
         );
 
       return [
         withClient(
           logsEsClient,
-          logger.perf('generating_logs', () => [backgroundLogs])
+          logger.perf('generating_logs', () => [backgroundLogs, foregroundLogs])
         ),
 
         withClient(
           infraEsClient,
-          logger.perf('generating_infra_hosts', () => hosts)
+          logger.perf('generating_infra_hosts', () => hostMetricDocuments)
         ),
       ];
     },
@@ -149,3 +166,18 @@ const scenario: Scenario<LogDocument> = async (runOptions) => {
 };
 
 export default scenario;
+
+const backgroundLogMessageGenerators = [
+  unstructuredLogMessageGenerators.httpAccess,
+  unstructuredLogMessageGenerators.dbOperation,
+  unstructuredLogMessageGenerators.taskStatus,
+];
+
+const generateBackgroundLogMessage = generateUnstructuredLogMessage(backgroundLogMessageGenerators);
+
+const rareLogMessageGenerators = [
+  unstructuredLogMessageGenerators.error,
+  unstructuredLogMessageGenerators.restart,
+];
+
+const generateRareLogMessage = generateUnstructuredLogMessage(rareLogMessageGenerators);
