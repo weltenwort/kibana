@@ -30,6 +30,11 @@ export interface LogRateAnalysisParams {
   timefield: string;
   keywordFieldCandidates?: string[];
   textFieldCandidates?: string[];
+  changePoint?:
+    | {
+        type: 'detect';
+      }
+    | { type: 'fixed'; timestamp: string };
 }
 
 export type LogRateAnaysisResult = AiopsLogRateAnalysisAPIResponse;

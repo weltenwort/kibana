@@ -72,26 +72,39 @@ export function routeHandlerFactory(
       controller.abort();
     });
 
-    const { index, timefield, start, end, keywordFieldCandidates, textFieldCandidates } =
-      request.body;
+    const {
+      index,
+      timefield,
+      start,
+      end,
+      keywordFieldCandidates,
+      textFieldCandidates,
+      changePoint,
+    } = request.body;
 
     return await coreStart.executionContext.withContext(executionContext, async () => {
-      const logRateAnalysis = await fetchLogRateAnalysis({
-        esClient,
-        abortSignal,
-        arguments: {
-          index,
-          start,
-          end,
-          timefield,
-          keywordFieldCandidates,
-          textFieldCandidates,
-        },
-      });
+      try {
+        const logRateAnalysis = await fetchLogRateAnalysis({
+          esClient,
+          abortSignal,
+          arguments: {
+            index,
+            start,
+            end,
+            timefield,
+            keywordFieldCandidates,
+            textFieldCandidates,
+            changePoint,
+          },
+        });
 
-      return response.ok({
-        body: logRateAnalysis,
-      });
+        return response.ok({
+          body: logRateAnalysis,
+        });
+      } catch (err) {
+        console.log(err);
+        throw err;
+      }
     });
   };
 }

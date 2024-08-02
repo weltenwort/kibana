@@ -12,6 +12,18 @@ export const aiopsLogRateAnalysisSchema = schema.object({
   index: schema.string(),
   start: schema.string(),
   end: schema.string(),
+  changePoint: schema.oneOf(
+    [
+      schema.object({
+        type: schema.literal('detect'),
+      }),
+      schema.object({
+        type: schema.literal('fixed'),
+        timestamp: schema.string(),
+      }),
+    ],
+    { defaultValue: { type: 'detect' } }
+  ),
   timefield: schema.string(),
   keywordFieldCandidates: schema.arrayOf(schema.string(), { defaultValue: [] }),
   textFieldCandidates: schema.arrayOf(schema.string(), { defaultValue: [] }),

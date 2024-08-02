@@ -18,7 +18,7 @@ import type { WindowParameters } from '../window_parameters';
 // Change point detection requires a minimum of 22 buckets to be able to run.
 const CHANGE_POINT_MIN_BUCKETS = 22;
 
-interface ChangePointDetectionData {
+export interface ChangePointDetectionData {
   changePoint: DocumentCountStatsChangePoint;
   changePointDocCount: number;
   dateHistogramBuckets: Record<string, number>;
@@ -47,8 +47,11 @@ export const fetchChangePointDetection = async (
   latestMs: number,
   timefield: string,
   searchQuery: estypes.QueryDslQueryContainer,
-  abortSignal?: AbortSignal
+  abortSignal?: AbortSignal,
+  fixedChangePoint?: number
 ): Promise<ChangePointDetectionResponse> => {
+  const shouldDetectChangePoint = fixedChangePoint == null;
+
   const barTarget = 75;
 
   const delta = latestMs - earliestMs;
@@ -88,12 +91,16 @@ export const fetchChangePointDetection = async (
           : {}),
       },
     },
-    change_point_request: {
-      // @ts-expect-error missing from ES spec
-      change_point: {
-        buckets_path: 'eventRate>_count',
-      },
-    },
+    ...(shouldDetectChangePoint
+      ? {
+          change_point_request: {
+            // @ts-expect-error missing from ES spec
+            change_point: {
+              buckets_path: 'eventRate>_count',
+            },
+          },
+        }
+      : {}),
   };
 
   const searchBody: estypes.MsearchMultisearchBody = {
@@ -118,7 +125,7 @@ export const fetchChangePointDetection = async (
     return ['No log rate change detected.', null];
   }
 
-  if (histogram.aggregations.change_point_request.bucket === undefined) {
+  if (shouldDetectChangePoint && histogram.aggregations.change_point_request.bucket === undefined) {
     return ['No log rate change detected.', null];
   }
 
@@ -127,16 +134,23 @@ export const fetchChangePointDetection = async (
     return acc;
   }, {});
 
-  const changePointTs = dateMath
-    .parse(histogram.aggregations.change_point_request.bucket.key)
-    ?.valueOf();
+  const changePointTs = shouldDetectChangePoint
+    ? dateMath.parse(histogram.aggregations.change_point_request.bucket.key)?.valueOf()
+    : getContainingBucketStart(dateHistogramBuckets, fixedChangePoint);
 
   if (changePointTs === undefined) {
     return ['There was an error parsing the log rate change timestamp.', null];
   }
 
-  const extendedChangePoint = getExtendedChangePoint(dateHistogramBuckets, changePointTs);
-  const logRateType = Object.keys(histogram.aggregations.change_point_request.type)[0];
+  const extendedChangePoint = shouldDetectChangePoint
+    ? getExtendedChangePoint(dateHistogramBuckets, changePointTs)
+    : {
+        startTs: changePointTs,
+        endTs: latestMs,
+      };
+  const logRateType = shouldDetectChangePoint
+    ? Object.keys(histogram.aggregations.change_point_request.type)[0]
+    : 'fixed';
 
   const changePoint = {
     ...extendedChangePoint,
@@ -156,10 +170,25 @@ export const fetchChangePointDetection = async (
     null,
     {
       changePoint: { ...extendedChangePoint, key: changePointTs, type: logRateType },
-      changePointDocCount: histogram.aggregations.change_point_request.bucket.doc_count,
+      changePointDocCount: shouldDetectChangePoint
+        ? histogram.aggregations.change_point_request.bucket.doc_count
+        : 0,
       dateHistogramBuckets,
       intervalMs,
       windowParameters,
     },
   ];
+};
+
+const getContainingBucketStart = (buckets: Record<string, number>, timestamp: number) => {
+  const containingBucketKey = Object.keys(buckets).findLast((bucketKey) => {
+    const bucketTimestamp = parseInt(bucketKey, 10);
+    return bucketTimestamp != null && bucketTimestamp <= timestamp;
+  });
+
+  if (containingBucketKey == null) {
+    return;
+  }
+
+  return parseInt(containingBucketKey, 10);
 };

@@ -100,6 +100,7 @@ export const fetchLogRateAnalysis = async ({
     timefield: string;
     keywordFieldCandidates?: string[];
     textFieldCandidates?: string[];
+    changePoint: { type: 'detect' } | { type: 'fixed'; timestamp: string };
   };
 }): Promise<LogRateAnalysisResult> => {
   const debugStartTime = Date.now();
@@ -131,7 +132,10 @@ export const fetchLogRateAnalysis = async ({
     latestMs,
     args.timefield,
     searchQuery,
-    abortSignal
+    abortSignal,
+    args.changePoint.type === 'fixed'
+      ? dateMath.parse(args.changePoint.timestamp)?.valueOf()
+      : undefined
   );
 
   if (error !== null) {

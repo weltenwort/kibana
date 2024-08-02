@@ -16,6 +16,7 @@ import { IUiSettingsClient } from '@kbn/core-ui-settings-browser';
 import { FieldFormatsStart } from '@kbn/field-formats-plugin/public';
 import React from 'react';
 import useAsyncFn from 'react-use/lib/useAsyncFn';
+import moment from 'moment';
 import type { LogAnalysisServiceStart } from '../../services/log_analysis';
 
 type LogRateAnalysisResult = AiopsLogRateAnalysisAPIResponse;
@@ -37,13 +38,20 @@ export interface LogsAnalysisProps {
 
 export const LogsAnalysis: React.FC<LogsAnalysisProps> = ({ dateRange, dependencies }) => {
   const [analysis, performAnalysis] = useAsyncFn(async () => {
+    const changePoint = dateRange.from;
+    const start = moment(dateRange.from).subtract(1, 'd').toISOString();
+
     return await dependencies.logsAnalysis.client.getLogRateAnalysis({
-      start: dateRange.from,
+      start,
       end: dateRange.to,
       index: 'logs-*-*',
       timefield: '@timestamp',
       keywordFieldCandidates: ['host.name', 'service.name'],
       textFieldCandidates: ['message'],
+      changePoint: {
+        type: 'fixed',
+        timestamp: changePoint,
+      },
     });
   }, [dateRange.from, dateRange.to, dependencies.logsAnalysis]);
 
