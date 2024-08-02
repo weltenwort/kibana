@@ -94,14 +94,14 @@ const scenario: Scenario<LogDocument> = async (runOptions) => {
           const entity = faker.helpers.arrayElement(hostEntities);
           const serviceName = faker.helpers.arrayElement(serviceNames);
           const level = faker.helpers.arrayElement(LOG_LEVELS);
-          const message = generateBackgroundLogMessage(faker);
+          const messages = generateBackgroundLogMessage(faker);
 
           // Skip some logs to reduce uniformity
           if (!faker.datatype.boolean(backgroundRatio)) {
             return [];
           }
 
-          return [
+          return messages.map((message) =>
             log
               .createMinimal()
               .message(message)
@@ -109,37 +109,37 @@ const scenario: Scenario<LogDocument> = async (runOptions) => {
               .service(serviceName)
               .overrides({
                 ...entity.fields,
+                labels: {
+                  scenario: 'rare',
+                  population: 'background',
+                },
               })
-              .timestamp(timestamp),
-          ];
+              .timestamp(timestamp)
+          );
         });
 
-      const foregroundLogs = range
-        .interval('1s')
-        .rate(1)
-        .generator((timestamp) => {
-          const entity = hostEntities[0];
-          const serviceName = faker.helpers.arrayElement(serviceNames);
-          const level = faker.helpers.arrayElement(LOG_LEVELS);
-          const message = generateRareLogMessage(faker);
+      const foregroundLogs = range.poissonEvents(3).generator((timestamp) => {
+        const entity = hostEntities[0];
+        const serviceName = faker.helpers.arrayElement(serviceNames);
+        const level = faker.helpers.arrayElement(LOG_LEVELS);
+        const messages = generateRareLogMessage(faker);
 
-          // Skip some logs to reduce uniformity
-          if (!faker.datatype.boolean(1 - backgroundRatio)) {
-            return [];
-          }
-
-          return [
-            log
-              .createMinimal()
-              .message(message)
-              .logLevel(level)
-              .service(serviceName)
-              .overrides({
-                ...entity.fields,
-              })
-              .timestamp(timestamp),
-          ];
-        });
+        return messages.map((message) =>
+          log
+            .createMinimal()
+            .message(message)
+            .logLevel(level)
+            .service(serviceName)
+            .overrides({
+              ...entity.fields,
+              labels: {
+                scenario: 'rare',
+                population: 'foreground',
+              },
+            })
+            .timestamp(timestamp)
+        );
+      });
 
       const hostMetricDocuments = range
         .interval('30s')
@@ -168,7 +168,7 @@ const scenario: Scenario<LogDocument> = async (runOptions) => {
 export default scenario;
 
 const backgroundLogMessageGenerators = [
-  unstructuredLogMessageGenerators.httpAccess,
+  // unstructuredLogMessageGenerators.httpAccess,
   unstructuredLogMessageGenerators.dbOperation,
   unstructuredLogMessageGenerators.taskStatus,
 ];

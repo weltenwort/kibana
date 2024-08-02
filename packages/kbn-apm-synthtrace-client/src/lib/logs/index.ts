@@ -45,6 +45,7 @@ export type LogDocument = Fields &
     'error.exception.stacktrace'?: string;
     'error.log.stacktrace'?: string;
     'log.custom': Record<string, unknown>;
+    labels?: Record<string, string>;
   }>;
 
 class Log extends Serializable<LogDocument> {

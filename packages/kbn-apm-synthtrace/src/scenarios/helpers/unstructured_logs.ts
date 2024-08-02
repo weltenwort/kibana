@@ -7,7 +7,7 @@
  */
 import { Faker, faker } from '@faker-js/faker';
 
-export type LogMessageGenerator = (f: Faker) => string;
+export type LogMessageGenerator = (f: Faker) => string[];
 
 /**
  * Ensures the type safety of the log message generators.
@@ -17,7 +17,7 @@ const ensureGeneratorType = <T extends Record<string, LogMessageGenerator>>(gene
 };
 
 export const unstructuredLogMessageGenerators = ensureGeneratorType({
-  httpAccess: (f: Faker) =>
+  httpAccess: (f: Faker) => [
     `${f.internet.ip()} - - [${f.date
       .past()
       .toISOString()
@@ -28,21 +28,24 @@ export const unstructuredLogMessageGenerators = ensureGeneratorType({
       )}] "${f.internet.httpMethod()} ${f.internet.url()} HTTP/1.1" ${f.helpers.arrayElement([
       200, 301, 404, 500,
     ])} ${f.number.int({ min: 100, max: 5000 })}`,
-  dbOperation: (f: Faker) =>
+  ],
+  dbOperation: (f: Faker) => [
     `${f.database.engine()}: ${f.database.column()} ${f.helpers.arrayElement([
       'created',
       'updated',
       'deleted',
       'inserted',
     ])} successfully ${f.number.int({ max: 100000 })} times`,
-  taskStatus: (f: Faker) =>
+  ],
+  taskStatus: (f: Faker) => [
     `${f.hacker.noun()}: ${f.word.words()} ${f.helpers.arrayElement([
       'triggered',
       'executed',
       'processed',
       'handled',
     ])} successfully at ${f.date.recent().toISOString()}`,
-  error: (f: Faker) =>
+  ],
+  error: (f: Faker) => [
     `${f.helpers.arrayElement([
       'Error',
       'Exception',
@@ -51,15 +54,24 @@ export const unstructuredLogMessageGenerators = ensureGeneratorType({
       'Bug',
       'Issue',
     ])}: ${f.hacker.phrase()}`,
-  restart: (f: Faker) =>
-    `Service ${f.database.engine()} restarted ${f.helpers.arrayElement([
-      'successfully',
-      'with errors',
-      'with warnings',
-    ])}`,
+    `Stopping ${f.number.int(42)} background tasks...`,
+    'Shutting down process...',
+  ],
+  restart: (f: Faker) => {
+    const service = f.database.engine();
+    return [
+      `Restarting ${service}...`,
+      `Waiting for queue to drain...`,
+      `Service ${service} restarted ${f.helpers.arrayElement([
+        'successfully',
+        'with errors',
+        'with warnings',
+      ])}`,
+    ];
+  },
 });
 
 export const generateUnstructuredLogMessage =
   (generators: LogMessageGenerator[] = Object.values(unstructuredLogMessageGenerators)) =>
-  (f: Faker = faker): string =>
+  (f: Faker = faker) =>
     f.helpers.arrayElement(generators)(f);

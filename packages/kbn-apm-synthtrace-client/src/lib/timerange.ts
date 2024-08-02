@@ -8,6 +8,7 @@
 import datemath from '@kbn/datemath';
 import type { Moment } from 'moment';
 import { Interval } from './interval';
+import { PoissonEvents } from './random_events';
 
 export class Timerange {
   constructor(private from: Date, private to: Date) {}
@@ -18,6 +19,10 @@ export class Timerange {
 
   ratePerMinute(rate: number) {
     return this.interval(`1m`).rate(rate);
+  }
+
+  poissonEvents(rate: number) {
+    return new PoissonEvents(this.from, this.to, rate);
   }
 }
 
