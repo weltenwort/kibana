@@ -34,6 +34,10 @@ export class PoissonEvents<TFields extends Fields = Fields> {
       index: number
     ) => Serializable<TGeneratedFields> | Array<Serializable<TGeneratedFields>>
   ): SynthtraceGenerator<TGeneratedFields> {
+    if (this.rate <= 0) {
+      return;
+    }
+
     let currentTime = this.from.getTime();
     const endTime = this.to.getTime();
     let eventIndex = 0;

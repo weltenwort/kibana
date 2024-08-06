@@ -14,10 +14,19 @@ import {
   unstructuredLogMessageGenerators,
 } from './helpers/unstructured_logs';
 
+const DEFAULT_SCENARIO_OPTS = {
+  foregroundPoissonRate: 3,
+};
+
 const scenario: Scenario<LogDocument> = async (runOptions) => {
   return {
     generate: ({ range, clients: { logsEsClient, infraEsClient } }) => {
       const { logger } = runOptions;
+      const scenarioOpts = { ...DEFAULT_SCENARIO_OPTS, ...(runOptions.scenarioOpts ?? {}) };
+
+      logger.debug(
+        `Generating rare logs with a foreground poisson rate of ${scenarioOpts.foregroundPoissonRate}...`
+      );
 
       // Logs Data logic
       const LOG_LEVELS = ['info', 'debug', 'error', 'warn', 'trace', 'fatal'];
@@ -118,28 +127,30 @@ const scenario: Scenario<LogDocument> = async (runOptions) => {
           );
         });
 
-      const foregroundLogs = range.poissonEvents(3).generator((timestamp) => {
-        const entity = hostEntities[0];
-        const serviceName = faker.helpers.arrayElement(serviceNames);
-        const level = faker.helpers.arrayElement(LOG_LEVELS);
-        const messages = generateRareLogMessage(faker);
+      const foregroundLogs = range
+        .poissonEvents(scenarioOpts.foregroundPoissonRate)
+        .generator((timestamp) => {
+          const entity = hostEntities[0];
+          const serviceName = faker.helpers.arrayElement(serviceNames);
+          const level = faker.helpers.arrayElement(LOG_LEVELS);
+          const messages = generateRareLogMessage(faker);
 
-        return messages.map((message) =>
-          log
-            .createMinimal()
-            .message(message)
-            .logLevel(level)
-            .service(serviceName)
-            .overrides({
-              ...entity.fields,
-              labels: {
-                scenario: 'rare',
-                population: 'foreground',
-              },
-            })
-            .timestamp(timestamp)
-        );
-      });
+          return messages.map((message) =>
+            log
+              .createMinimal()
+              .message(message)
+              .logLevel(level)
+              .service(serviceName)
+              .overrides({
+                ...entity.fields,
+                labels: {
+                  scenario: 'rare',
+                  population: 'foreground',
+                },
+              })
+              .timestamp(timestamp)
+          );
+        });
 
       const hostMetricDocuments = range
         .interval('30s')

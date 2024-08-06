@@ -24,6 +24,21 @@ export class Timerange {
   poissonEvents(rate: number) {
     return new PoissonEvents(this.from, this.to, rate);
   }
+
+  splitInto(segmentCount: number): Timerange[] {
+    const duration = this.to.getTime() - this.from.getTime();
+    const segmentDuration = duration / segmentCount;
+
+    return Array.from({ length: segmentCount }, (_, i) => {
+      const from = new Date(this.from.getTime() + i * segmentDuration);
+      const to = new Date(from.getTime() + segmentDuration);
+      return new Timerange(from, to);
+    });
+  }
+
+  toString() {
+    return `Timerange(from=${this.from.toISOString()}, to=${this.to.toISOString()})`;
+  }
 }
 
 type DateLike = Date | number | Moment | string;
