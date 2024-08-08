@@ -53,13 +53,14 @@ export interface LogCategoriesAnalysisParams {
 }
 
 export interface LogCategoriesAnalysisResults {
+  histogram: LogCategoryHistogramBucket[];
   logCategories: LogCategoryAnalysisResult[];
 }
 
 export interface LogCategoryAnalysisResult {
   changePoint: ChangePointAnalysisResult;
   docCount: number;
-  histogram: LogRateCategoryHistogramBucket[];
+  histogram: LogCategoryHistogramBucket[];
   terms: string;
 }
 
@@ -90,7 +91,7 @@ export interface ChangePointAnalysisDistributionChangeResult {
   type: 'distribution_change' | 'trend_change';
 }
 
-export interface LogRateCategoryHistogramBucket {
+export interface LogCategoryHistogramBucket {
   timestamp: string;
   docCount: number;
 }

@@ -18,7 +18,7 @@ import {
   LogCategoriesAnalysisResults,
   LogCategoryAnalysisResult,
   LogRateAnalysisParams,
-  LogRateCategoryHistogramBucket,
+  LogCategoryHistogramBucket,
 } from './types';
 
 const isoTimestampFormat = "YYYY-MM-DD'T'HH:mm:ss.SSS'Z'";
@@ -52,8 +52,6 @@ export class LogAnalysisClient implements ILogAnalysisClient {
     );
     const fixedIntervalSize = `${fixedIntervalDuration?.asMinutes()}m`;
 
-    console.log(startMoment, endMoment, fixedIntervalDuration);
-
     const { rawResponse: categoriesResponse } = await lastValueFrom(
       this.search({
         params: {
@@ -81,6 +79,16 @@ export class LogAnalysisClient implements ILogAnalysisClient {
             },
           },
           aggs: {
+            histogram: {
+              date_histogram: {
+                field: '@timestamp',
+                fixed_interval: fixedIntervalSize,
+                extended_bounds: {
+                  min: start,
+                  max: end,
+                },
+              },
+            },
             categories: {
               categorize_text: {
                 field: 'message',
@@ -117,6 +125,7 @@ export class LogAnalysisClient implements ILogAnalysisClient {
     return {
       logCategories:
         categoriesResponse.aggregations?.categories.buckets.map(mapCategoryBucket) ?? [],
+      histogram: mapCategoryHistogram(categoriesResponse.aggregations?.histogram.buckets),
     };
   }
 }
@@ -162,7 +171,7 @@ const mapChangePoint = (changePoint: any): ChangePointAnalysisResult => {
   throw new Error(`Unknown change point type: ${changePointType}`);
 };
 
-const mapCategoryHistogram = (histogramBuckets: unknown[]): LogRateCategoryHistogramBucket[] => {
+const mapCategoryHistogram = (histogramBuckets: unknown[]): LogCategoryHistogramBucket[] => {
   return histogramBuckets.map((bucket: any) => ({
     docCount: bucket.doc_count,
     timestamp: bucket.key_as_string,
