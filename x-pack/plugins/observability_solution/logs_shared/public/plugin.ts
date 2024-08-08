@@ -65,7 +65,7 @@ export class LogsSharedPlugin implements LogsSharedClientPluginClass {
       search: data.search,
     });
 
-    const logsAnalysis = this.logAnalysis.start({ http });
+    const logsAnalysis = this.logAnalysis.start({ http, search: data.search });
 
     const LogsOverview = createLogsOverview({
       charts,

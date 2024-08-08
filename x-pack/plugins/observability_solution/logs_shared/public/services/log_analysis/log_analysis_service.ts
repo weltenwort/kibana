@@ -17,8 +17,8 @@ export class LogAnalysisService {
     return {};
   }
 
-  public start({ http }: LogAnalysisServiceStartDeps): LogAnalysisServiceStart {
-    const client = new LogAnalysisClient(http);
+  public start({ http, search }: LogAnalysisServiceStartDeps): LogAnalysisServiceStart {
+    const client = new LogAnalysisClient(http, search.search);
 
     return {
       client,

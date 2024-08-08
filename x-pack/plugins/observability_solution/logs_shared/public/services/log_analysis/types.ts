@@ -7,6 +7,7 @@
 
 import type { AiopsLogRateAnalysisAPIResponse } from '@kbn/aiops-api-plugin/common';
 import { HttpStart } from '@kbn/core-http-browser';
+import { ISearchStart } from '@kbn/data-plugin/public';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface LogAnalysisServiceSetup {}
@@ -17,10 +18,14 @@ export interface LogAnalysisServiceStart {
 
 export interface LogAnalysisServiceStartDeps {
   http: HttpStart;
+  search: ISearchStart;
 }
 
 export interface ILogAnalysisClient {
   getLogRateAnalysis(params: LogRateAnalysisParams): Promise<AiopsLogRateAnalysisAPIResponse>;
+  getLogCategoriesAnalysis(
+    params: LogCategoriesAnalysisParams
+  ): Promise<LogCategoriesAnalysisResults>;
 }
 
 export interface LogRateAnalysisParams {
@@ -38,3 +43,54 @@ export interface LogRateAnalysisParams {
 }
 
 export type LogRateAnaysisResult = AiopsLogRateAnalysisAPIResponse;
+
+export interface LogCategoriesAnalysisParams {
+  start: string;
+  end: string;
+  index: string;
+  timefield: string;
+  messageField: string;
+}
+
+export interface LogCategoriesAnalysisResults {
+  logCategories: LogCategoryAnalysisResult[];
+}
+
+export interface LogCategoryAnalysisResult {
+  changePoint: ChangePointAnalysisResult;
+  docCount: number;
+  histogram: LogRateCategoryHistogramBucket[];
+  terms: string;
+}
+
+export type ChangePointAnalysisResult =
+  | ChangePointAnalysisStationaryResult
+  | ChangePointAnalysisSuddenChangeResult
+  | ChangePointAnalysisNonStationaryChangeResult
+  | ChangePointAnalysisDistributionChangeResult;
+
+export interface ChangePointAnalysisStationaryResult {
+  type: 'stationary';
+}
+
+export interface ChangePointAnalysisSuddenChangeResult {
+  type: 'dip' | 'spike' | 'step_change';
+  timestamp: string;
+  docCount: number;
+  pValue: number;
+}
+
+export interface ChangePointAnalysisNonStationaryChangeResult {
+  type: 'non_stationary';
+  pValue: number;
+  trend: 'increasing' | 'decreasing';
+}
+
+export interface ChangePointAnalysisDistributionChangeResult {
+  type: 'distribution_change' | 'trend_change';
+}
+
+export interface LogRateCategoryHistogramBucket {
+  timestamp: string;
+  docCount: number;
+}

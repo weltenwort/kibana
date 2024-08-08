@@ -8,16 +8,18 @@
 /* eslint-disable @kbn/telemetry/event_generating_elements_should_be_instrumented */
 /* eslint-disable @kbn/i18n/strings_should_be_translated_with_i18n */
 
-import { EuiButton } from '@elastic/eui';
+import { EuiButton, EuiDataGrid, EuiDataGridColumn, RenderCellValue } from '@elastic/eui';
 import { AiopsLogRateAnalysisAPIResponse } from '@kbn/aiops-api-plugin/common';
-import { SimpleAnalysisResultsTable, SimpleDocumentCountChart } from '@kbn/aiops-components';
 import { ChartsPluginStart } from '@kbn/charts-plugin/public';
 import { IUiSettingsClient } from '@kbn/core-ui-settings-browser';
 import { FieldFormatsStart } from '@kbn/field-formats-plugin/public';
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import useAsyncFn from 'react-use/lib/useAsyncFn';
-import moment from 'moment';
 import type { LogAnalysisServiceStart } from '../../services/log_analysis';
+import {
+  LogCategoriesAnalysisResults,
+  LogCategoryAnalysisResult,
+} from '../../services/log_analysis/types';
 
 type LogRateAnalysisResult = AiopsLogRateAnalysisAPIResponse;
 
@@ -38,20 +40,12 @@ export interface LogsAnalysisProps {
 
 export const LogsAnalysis: React.FC<LogsAnalysisProps> = ({ dateRange, dependencies }) => {
   const [analysis, performAnalysis] = useAsyncFn(async () => {
-    const changePoint = dateRange.from;
-    const start = moment(dateRange.from).subtract(1, 'd').toISOString();
-
-    return await dependencies.logsAnalysis.client.getLogRateAnalysis({
-      start,
+    return await dependencies.logsAnalysis.client.getLogCategoriesAnalysis({
+      start: dateRange.from,
       end: dateRange.to,
       index: 'logs-*-*',
       timefield: '@timestamp',
-      keywordFieldCandidates: ['host.name', 'service.name'],
-      textFieldCandidates: ['message'],
-      changePoint: {
-        type: 'fixed',
-        timestamp: changePoint,
-      },
+      messageField: 'message',
     });
   }, [dateRange.from, dateRange.to, dependencies.logsAnalysis]);
 
@@ -67,7 +61,6 @@ export const LogsAnalysis: React.FC<LogsAnalysisProps> = ({ dateRange, dependenc
     return <LogsAnalysisEmptyState onAnalyzeLogs={performAnalysis} />;
   }
 
-  // TODO: show analysis results
   return (
     <LogAnalysisResults
       analysisResults={analysis.value}
@@ -95,32 +88,43 @@ const LogAnalysisError: React.FC<{
     <div>
       <LogAnalysisControls onAnalyzeLogs={onAnalyzeLogs} />
       <pre>Error: {analysisError.message}</pre>
+      <pre>Error: {analysisError.stack}</pre>
     </div>
   );
 };
 
+const gridInMemoryConfig = { level: 'sorting' as const };
+
 const LogAnalysisResults: React.FC<{
-  analysisResults: LogRateAnalysisResult;
+  analysisResults: LogCategoriesAnalysisResults;
   dependencies: LogsAnalysisDependencies;
   onAnalyzeLogs: () => void;
 }> = ({ analysisResults, dependencies: { charts, fieldFormats, uiSettings }, onAnalyzeLogs }) => {
+  const [visibleColumns, setVisibleColumns] = useState(['category']);
+
+  const renderCategoryChangesCellValue: RenderCellValue = useCallback(
+    ({ rowIndex, columnId }) => {
+      const category = analysisResults.logCategories[rowIndex];
+
+      if (columnId === 'category') {
+        return <>{category.terms}</>;
+      }
+
+      return null;
+    },
+    [analysisResults.logCategories]
+  );
+
   return (
     <div>
       <LogAnalysisControls onAnalyzeLogs={onAnalyzeLogs} />
-      <SimpleDocumentCountChart
-        dependencies={{
-          charts,
-          fieldFormats,
-          uiSettings,
-        }}
-        dateHistogram={analysisResults.dateHistogramBuckets}
-        changePoint={{
-          ...analysisResults.logRateChange.extendedChangePoint,
-          key: 0,
-          type: 'spike',
-        }}
+      <EuiDataGrid
+        columns={categoryChangesGridColumns}
+        columnVisibility={{ visibleColumns, setVisibleColumns }}
+        inMemory={gridInMemoryConfig}
+        renderCellValue={renderCategoryChangesCellValue}
+        rowCount={analysisResults.logCategories.length}
       />
-      <SimpleAnalysisResultsTable tableItems={analysisResults.significantItems} />
       <pre>{`Analysis results: ${JSON.stringify(analysisResults, undefined, 2)}`}</pre>
     </div>
   );
@@ -133,3 +137,16 @@ const LogAnalysisControls: React.FC<{ onAnalyzeLogs: () => void }> = ({ onAnalyz
     </div>
   );
 };
+
+const categoryChangesGridColumns: EuiDataGridColumn[] = [
+  {
+    id: 'category',
+    displayAsText: 'Category',
+    isSortable: false,
+    schema: 'string',
+  },
+];
+
+interface CategoryChangesCellContext {
+  categories: LogCategoryAnalysisResult[];
+}
