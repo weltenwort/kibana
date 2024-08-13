@@ -16,6 +16,7 @@ import {
   createRandomSamplerWrapper,
   getSampleProbability,
 } from '@kbn/ml-random-sampler-utils';
+import { SearchRequest } from '@elastic/elasticsearch/lib/api/types';
 import {
   ChangePointAnalysisResult,
   ILogAnalysisClient,
@@ -27,6 +28,24 @@ import {
 } from './types';
 
 const isoTimestampFormat = "YYYY-MM-DD'T'HH:mm:ss.SSS'Z'";
+
+interface SamplingPass {
+  name: string;
+  getSampler: (
+    analysisParams: Omit<LogCategoriesAnalysisParams, 'sampling'>,
+    previousPassResult: SamplingPassResult
+  ) => Promise<RandomSamplerWrapper>;
+  getRequestParams: (
+    analysisParams: Omit<LogCategoriesAnalysisParams, 'sampling'>,
+    previousPassResult: SamplingPassResult,
+    sampler: RandomSamplerWrapper
+  ) => Promise<SearchRequest>;
+}
+
+interface SamplingPassResult {
+  histogram: LogCategoryHistogramBucket[];
+  logCategories: LogCategoryAnalysisResult[];
+}
 
 export class LogAnalysisClient implements ILogAnalysisClient {
   constructor(private readonly http: HttpStart, private readonly search: ISearchGeneric) {}
@@ -43,123 +62,62 @@ export class LogAnalysisClient implements ILogAnalysisClient {
   }
 
   public async getLogCategoriesAnalysis({
-    index,
-    timefield,
-    messageField,
-    start,
-    end,
     sampling,
+    ...analysisParams
   }: LogCategoriesAnalysisParams): Promise<LogCategoriesAnalysisResults> {
     const execStartTime = performance.now();
 
     // TODO: abstract out sampling modes
     // i.e. samplingPasses = getSamplingPasses(sampling)
     // samplingPasses.reduce to run each pass sequentially
-    // if (sampling.mode === 'auto') {
-    const { rawResponse: totalHitsResponse } = await lastValueFrom(
-      this.search({
-        params: {
-          index,
-          size: 0,
-          track_total_hits: true,
-          query: getCategorizationQuery(messageField, timefield, start, end, []),
-        },
-      })
+    const samplingPasses = getSamplingPasses(sampling.mode)({ search: this.search });
+
+    const samplingResults: SamplingPassResult = await samplingPasses.reduce(
+      async (previousPromise, samplingPass) => {
+        const passStartTime = performance.now();
+
+        const previousResult = await previousPromise;
+        const sampler = await samplingPass.getSampler(analysisParams, previousResult);
+        const requestParams = await samplingPass.getRequestParams(
+          analysisParams,
+          previousResult,
+          sampler
+        );
+        const { rawResponse } = await lastValueFrom(this.search({ params: requestParams }));
+
+        if (rawResponse.aggregations == null) {
+          throw new Error('No aggregations found in large categories response');
+        }
+
+        const logCategoriesAggResult = sampler.unwrap(rawResponse.aggregations);
+
+        if (!('categories' in logCategoriesAggResult)) {
+          throw new Error('No categorization aggregation found in large categories response');
+        }
+
+        const logCategories =
+          (logCategoriesAggResult.categories.buckets as unknown[]).map(mapCategoryBucket) ?? [];
+
+        const passEndTime = performance.now();
+        console.log(`Pass "${samplingPass.name}" execution time: ${passEndTime - passStartTime}ms`);
+
+        return {
+          histogram:
+            previousResult.histogram.length > 0
+              ? previousResult.histogram
+              : mapCategoryHistogram(logCategoriesAggResult.histogram.buckets),
+          logCategories: [...previousResult.logCategories, ...logCategories],
+        };
+      },
+      Promise.resolve({ histogram: [], logCategories: [] } as SamplingPassResult)
     );
 
-    const overallDocCount =
-      totalHitsResponse.hits.total == null
-        ? 0
-        : typeof totalHitsResponse.hits.total === 'number'
-        ? totalHitsResponse.hits.total
-        : totalHitsResponse.hits.total.value;
-    const sampleProbability = getSampleProbability(overallDocCount);
-
-    const docCountDoneTime = performance.now();
-
-    console.log(`Doc count time: ${docCountDoneTime - execStartTime}ms`);
-    console.log(
-      `${overallDocCount} documents found, using sample probability of ${sampleProbability}`
-    );
-
-    const largeCategoriesSampler = createRandomSamplerWrapper({
-      probability: sampleProbability,
-      seed: 0,
-    });
-
-    const { rawResponse: largeCategoriesResponse } = await lastValueFrom(
-      this.search({
-        params: getCategorizationRequestParams({
-          index,
-          timefield,
-          messageField,
-          start,
-          end,
-          minDocsPerCategory: 10,
-          randomSampler: largeCategoriesSampler,
-        }),
-      })
-    );
-
-    if (largeCategoriesResponse.aggregations == null) {
-      throw new Error('No aggregations found in large categories response');
-    }
-
-    const largeCategoriesAggResult = largeCategoriesSampler.unwrap(
-      largeCategoriesResponse.aggregations
-    );
-
-    if (!('categories' in largeCategoriesAggResult)) {
-      throw new Error('No categorization aggregation found in large categories response');
-    }
-
-    const largeCategories =
-      (largeCategoriesAggResult.categories.buckets as unknown[]).map(mapCategoryBucket) ?? [];
-
-    const largeCategoriesDoneTime = performance.now();
-    console.log(`Large categories time: ${largeCategoriesDoneTime - docCountDoneTime}ms`);
-
-    const smallCategoriesSampler = createRandomSamplerWrapper({ probability: 1, seed: 0 });
-
-    const { rawResponse: smallCategoriesResponse } = await lastValueFrom(
-      this.search({
-        params: getCategorizationRequestParams({
-          index,
-          timefield,
-          messageField,
-          start,
-          end,
-          ignoredQueries: largeCategories.map((category) => category.terms),
-          randomSampler: smallCategoriesSampler,
-        }),
-      })
-    );
-
-    if (smallCategoriesResponse.aggregations == null) {
-      throw new Error('No aggregations found in small categories response');
-    }
-
-    const smallCategoriesAggResult = smallCategoriesSampler.unwrap(
-      smallCategoriesResponse.aggregations
-    );
-
-    if (!('categories' in smallCategoriesAggResult)) {
-      throw new Error('No categorization aggregation found in small categories response');
-    }
-
-    const smallCategories =
-      (smallCategoriesAggResult.categories.buckets as unknown[]).map(mapCategoryBucket) ?? [];
-
-    const smallCategoriesDoneTime = performance.now();
-    console.log(`Small categories time: ${smallCategoriesDoneTime - largeCategoriesDoneTime}ms`);
-
-    const executionTime = smallCategoriesDoneTime - execStartTime;
+    const executionTime = performance.now() - execStartTime;
     console.log(`Overall execution time: ${executionTime}ms`);
 
     return {
-      logCategories: [...largeCategories, ...smallCategories],
-      // logCategories: largeCategories,
-      histogram: mapCategoryHistogram(largeCategoriesAggResult.histogram.buckets),
+      logCategories: samplingResults.logCategories,
+      histogram: samplingResults.histogram,
     };
   }
 }
@@ -211,6 +169,93 @@ const mapCategoryHistogram = (histogramBuckets: unknown[]): LogCategoryHistogram
     timestamp: bucket.key_as_string,
   }));
 };
+
+const getSamplingPasses =
+  (samplingMode: 'auto' | 'none') =>
+  ({ search }: { search: ISearchGeneric }): SamplingPass[] => {
+    if (samplingMode === 'auto') {
+      return [
+        getLargeCategoriesSamplingPass({ search }),
+        getRemainingCategoriesSamplingPass({ search }),
+      ];
+    } else {
+      return [getRemainingCategoriesSamplingPass({ search })];
+    }
+  };
+
+const getLargeCategoriesSamplingPass = ({ search }: { search: ISearchGeneric }): SamplingPass => ({
+  name: 'large categories',
+  getSampler: async ({ index, messageField, timefield, start, end }) => {
+    const { rawResponse: totalHitsResponse } = await lastValueFrom(
+      search({
+        params: {
+          index,
+          size: 0,
+          track_total_hits: true,
+          query: getCategorizationQuery(messageField, timefield, start, end, []),
+        },
+      })
+    );
+
+    const overallDocCount =
+      totalHitsResponse.hits.total == null
+        ? 0
+        : typeof totalHitsResponse.hits.total === 'number'
+        ? totalHitsResponse.hits.total
+        : totalHitsResponse.hits.total.value;
+    const sampleProbability = getSampleProbability(overallDocCount);
+
+    console.log(
+      `${overallDocCount} documents found, using sample probability of ${sampleProbability}`
+    );
+
+    return createRandomSamplerWrapper({
+      probability: sampleProbability,
+      seed: 1,
+    });
+  },
+  getRequestParams: async (
+    { index, messageField, timefield, start, end },
+    _previousPassResult,
+    sampler
+  ) => {
+    return getCategorizationRequestParams({
+      index,
+      timefield,
+      messageField,
+      start,
+      end,
+      minDocsPerCategory: 10,
+      randomSampler: sampler,
+    });
+  },
+});
+
+const getRemainingCategoriesSamplingPass = ({
+  search,
+}: {
+  search: ISearchGeneric;
+}): SamplingPass => ({
+  name: 'remaining categories',
+  getSampler: async () => {
+    return createRandomSamplerWrapper({ probability: 1, seed: 1 });
+  },
+  getRequestParams: async (
+    { index, messageField, timefield, start, end },
+    previousPassResult,
+    sampler
+  ) => {
+    return getCategorizationRequestParams({
+      index,
+      timefield,
+      messageField,
+      start,
+      end,
+      ignoredQueries: previousPassResult?.logCategories.map((category) => category.terms),
+      randomSampler: sampler,
+    });
+  },
+});
 
 const getCategorizationRequestParams = ({
   index,
@@ -316,7 +361,7 @@ const getCategorizationQuery = (
         match: {
           [messageField]: {
             query: ignoredQuery,
-            operator: 'AND',
+            operator: 'AND' as const,
 
             fuzziness: 0,
             auto_generate_synonyms_phrase_query: false,

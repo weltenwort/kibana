@@ -55,6 +55,8 @@ export const LogsAnalysis: React.FC<LogsAnalysisProps> = ({ dateRange, dependenc
       index: 'logs-*-*',
       timefield: '@timestamp',
       messageField: 'message',
+      // sampling: { mode: 'auto' },
+      sampling: { mode: 'none' },
     });
   }, [dateRange.from, dateRange.to, dependencies.logsAnalysis]);
 
