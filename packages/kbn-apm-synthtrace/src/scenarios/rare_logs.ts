@@ -15,6 +15,7 @@ import {
 } from './helpers/unstructured_logs';
 
 const DEFAULT_SCENARIO_OPTS = {
+  backgroundRate: 1,
   foregroundPoissonRate: 3,
 };
 
@@ -25,7 +26,7 @@ const scenario: Scenario<LogDocument> = async (runOptions) => {
       const scenarioOpts = { ...DEFAULT_SCENARIO_OPTS, ...(runOptions.scenarioOpts ?? {}) };
 
       logger.debug(
-        `Generating rare logs with a foreground poisson rate of ${scenarioOpts.foregroundPoissonRate}...`
+        `Generating rare logs (bg rate: ${scenarioOpts.backgroundRate}, fg rate: ${scenarioOpts.foregroundPoissonRate})...`
       );
 
       // Logs Data logic
@@ -98,7 +99,7 @@ const scenario: Scenario<LogDocument> = async (runOptions) => {
 
       const backgroundLogs = range
         .interval('1s')
-        .rate(1)
+        .rate(scenarioOpts.backgroundRate)
         .generator((timestamp) => {
           const entity = faker.helpers.arrayElement(hostEntities);
           const serviceName = faker.helpers.arrayElement(serviceNames);

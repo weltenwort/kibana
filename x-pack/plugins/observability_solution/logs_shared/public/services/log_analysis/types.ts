@@ -50,6 +50,13 @@ export interface LogCategoriesAnalysisParams {
   index: string;
   timefield: string;
   messageField: string;
+  sampling:
+    | {
+        mode: 'auto';
+      }
+    | {
+        mode: 'none';
+      };
 }
 
 export interface LogCategoriesAnalysisResults {

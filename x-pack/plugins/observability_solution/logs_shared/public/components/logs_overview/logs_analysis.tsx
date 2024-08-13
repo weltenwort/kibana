@@ -144,12 +144,16 @@ const LogAnalysisResults: React.FC<{
 
       if (columnId === 'category') {
         return <pre>{category.terms}</pre>;
+      } else if (columnId === 'count') {
+        return <>{category.docCount}</>;
       } else if (columnId === 'history') {
         return (
           <MiniHistogram
             chartData={category.histogram.map((bucket, bucketIndex) => ({
-              doc_count_overall: analysisResults.histogram[bucketIndex].docCount,
-              doc_count_significant_item: bucket.docCount,
+              // doc_count_overall: analysisResults.histogram[bucketIndex].docCount,
+              // doc_count_significant_item: bucket.docCount,
+              doc_count_overall: bucket.docCount,
+              doc_count_significant_item: 0,
               key: new Date(bucket.timestamp).getTime(),
               key_as_string: bucket.timestamp,
             }))}
@@ -169,21 +173,24 @@ const LogAnalysisResults: React.FC<{
               <EuiBadge>{category.changePoint.type}</EuiBadge> at{' '}
               <FormattedDate
                 value={category.changePoint.timestamp}
+                year="numeric"
+                month="2-digit"
+                day="2-digit"
                 hour="2-digit"
                 minute="2-digit"
               />
             </>
           );
         } else if (category.changePoint?.type === 'non_stationary') {
-          return <>{category.changePoint.trend} trend</>;
+          return <EuiBadge>{category.changePoint.trend} trend</EuiBadge>;
         } else if (category.changePoint?.type === 'distribution_change') {
-          return <>Distribution change</>;
+          return <EuiBadge>Distribution change</EuiBadge>;
         } else if (category.changePoint?.type === 'trend_change') {
-          return <>Trend change</>;
+          return <EuiBadge>Trend change</EuiBadge>;
         } else if (category.changePoint?.type === 'stationary') {
           return <>-</>;
         } else {
-          return <>{category.changePoint.type}</>;
+          return <EuiBadge>{category.changePoint.type}</EuiBadge>;
         }
       } else if (columnId === 'significance') {
         return <>{category.changePoint?.pValue ?? 0}</>;
@@ -191,7 +198,7 @@ const LogAnalysisResults: React.FC<{
 
       return null;
     },
-    [analysisResults.histogram, analysisResults.logCategories, charts]
+    [analysisResults.logCategories, charts]
   );
 
   return (
@@ -229,6 +236,13 @@ const categoryChangesGridColumns: EuiDataGridColumn[] = [
     display: 'Category',
     isSortable: false,
     schema: 'string',
+  },
+  {
+    id: 'count',
+    display: 'Count',
+    isSortable: true,
+    schema: 'numeric',
+    initialWidth: 100,
   },
   {
     id: 'history',

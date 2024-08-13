@@ -12,6 +12,11 @@ import { ISearchGeneric } from '@kbn/search-types';
 import moment from 'moment';
 import { lastValueFrom } from 'rxjs';
 import {
+  RandomSamplerWrapper,
+  createRandomSamplerWrapper,
+  getSampleProbability,
+} from '@kbn/ml-random-sampler-utils';
+import {
   ChangePointAnalysisResult,
   ILogAnalysisClient,
   LogCategoriesAnalysisParams,
@@ -43,89 +48,118 @@ export class LogAnalysisClient implements ILogAnalysisClient {
     messageField,
     start,
     end,
+    sampling,
   }: LogCategoriesAnalysisParams): Promise<LogCategoriesAnalysisResults> {
-    const startMoment = moment(start, isoTimestampFormat);
-    const endMoment = moment(end, isoTimestampFormat);
-    const fixedIntervalDuration = calculateAuto.atLeast(
-      24,
-      moment.duration(endMoment.diff(startMoment))
-    );
-    const fixedIntervalSize = `${fixedIntervalDuration?.asMinutes()}m`;
+    const execStartTime = performance.now();
 
-    const { rawResponse: categoriesResponse } = await lastValueFrom(
+    // TODO: abstract out sampling modes
+    // i.e. samplingPasses = getSamplingPasses(sampling)
+    // samplingPasses.reduce to run each pass sequentially
+    // if (sampling.mode === 'auto') {
+    const { rawResponse: totalHitsResponse } = await lastValueFrom(
       this.search({
         params: {
           index,
           size: 0,
-          track_total_hits: false,
-          query: {
-            bool: {
-              filter: [
-                {
-                  exists: {
-                    field: messageField,
-                  },
-                },
-                {
-                  range: {
-                    [timefield]: {
-                      gte: start,
-                      lte: end,
-                      format: 'strict_date_time',
-                    },
-                  },
-                },
-              ],
-            },
-          },
-          aggs: {
-            histogram: {
-              date_histogram: {
-                field: '@timestamp',
-                fixed_interval: fixedIntervalSize,
-                extended_bounds: {
-                  min: start,
-                  max: end,
-                },
-              },
-            },
-            categories: {
-              categorize_text: {
-                field: 'message',
-                size: 1000,
-                categorization_analyzer: {
-                  tokenizer: 'standard',
-                },
-              },
-              aggs: {
-                histogram: {
-                  date_histogram: {
-                    field: '@timestamp',
-                    fixed_interval: fixedIntervalSize,
-                    extended_bounds: {
-                      min: start,
-                      max: end,
-                    },
-                  },
-                },
-                change: {
-                  change_point: {
-                    buckets_path: 'histogram>_count',
-                  },
-                },
-              },
-            },
-          },
+          track_total_hits: true,
+          query: getCategorizationQuery(messageField, timefield, start, end, []),
         },
       })
     );
 
-    console.log(categoriesResponse);
+    const overallDocCount =
+      totalHitsResponse.hits.total == null
+        ? 0
+        : typeof totalHitsResponse.hits.total === 'number'
+        ? totalHitsResponse.hits.total
+        : totalHitsResponse.hits.total.value;
+    const sampleProbability = getSampleProbability(overallDocCount);
+
+    const docCountDoneTime = performance.now();
+
+    console.log(`Doc count time: ${docCountDoneTime - execStartTime}ms`);
+    console.log(
+      `${overallDocCount} documents found, using sample probability of ${sampleProbability}`
+    );
+
+    const largeCategoriesSampler = createRandomSamplerWrapper({
+      probability: sampleProbability,
+      seed: 0,
+    });
+
+    const { rawResponse: largeCategoriesResponse } = await lastValueFrom(
+      this.search({
+        params: getCategorizationRequestParams({
+          index,
+          timefield,
+          messageField,
+          start,
+          end,
+          minDocsPerCategory: 10,
+          randomSampler: largeCategoriesSampler,
+        }),
+      })
+    );
+
+    if (largeCategoriesResponse.aggregations == null) {
+      throw new Error('No aggregations found in large categories response');
+    }
+
+    const largeCategoriesAggResult = largeCategoriesSampler.unwrap(
+      largeCategoriesResponse.aggregations
+    );
+
+    if (!('categories' in largeCategoriesAggResult)) {
+      throw new Error('No categorization aggregation found in large categories response');
+    }
+
+    const largeCategories =
+      (largeCategoriesAggResult.categories.buckets as unknown[]).map(mapCategoryBucket) ?? [];
+
+    const largeCategoriesDoneTime = performance.now();
+    console.log(`Large categories time: ${largeCategoriesDoneTime - docCountDoneTime}ms`);
+
+    const smallCategoriesSampler = createRandomSamplerWrapper({ probability: 1, seed: 0 });
+
+    const { rawResponse: smallCategoriesResponse } = await lastValueFrom(
+      this.search({
+        params: getCategorizationRequestParams({
+          index,
+          timefield,
+          messageField,
+          start,
+          end,
+          ignoredQueries: largeCategories.map((category) => category.terms),
+          randomSampler: smallCategoriesSampler,
+        }),
+      })
+    );
+
+    if (smallCategoriesResponse.aggregations == null) {
+      throw new Error('No aggregations found in small categories response');
+    }
+
+    const smallCategoriesAggResult = smallCategoriesSampler.unwrap(
+      smallCategoriesResponse.aggregations
+    );
+
+    if (!('categories' in smallCategoriesAggResult)) {
+      throw new Error('No categorization aggregation found in small categories response');
+    }
+
+    const smallCategories =
+      (smallCategoriesAggResult.categories.buckets as unknown[]).map(mapCategoryBucket) ?? [];
+
+    const smallCategoriesDoneTime = performance.now();
+    console.log(`Small categories time: ${smallCategoriesDoneTime - largeCategoriesDoneTime}ms`);
+
+    const executionTime = smallCategoriesDoneTime - execStartTime;
+    console.log(`Overall execution time: ${executionTime}ms`);
 
     return {
-      logCategories:
-        categoriesResponse.aggregations?.categories.buckets.map(mapCategoryBucket) ?? [],
-      histogram: mapCategoryHistogram(categoriesResponse.aggregations?.histogram.buckets),
+      logCategories: [...largeCategories, ...smallCategories],
+      // logCategories: largeCategories,
+      histogram: mapCategoryHistogram(largeCategoriesAggResult.histogram.buckets),
     };
   }
 }
@@ -176,4 +210,119 @@ const mapCategoryHistogram = (histogramBuckets: unknown[]): LogCategoryHistogram
     docCount: bucket.doc_count,
     timestamp: bucket.key_as_string,
   }));
+};
+
+const getCategorizationRequestParams = ({
+  index,
+  timefield,
+  messageField,
+  start,
+  end,
+  minDocsPerCategory = 0,
+  ignoredQueries = [],
+  randomSampler,
+}: {
+  start: string;
+  end: string;
+  index: string;
+  timefield: string;
+  messageField: string;
+  randomSampler: RandomSamplerWrapper;
+  minDocsPerCategory?: number;
+  ignoredQueries?: string[];
+}) => {
+  const startMoment = moment(start, isoTimestampFormat);
+  const endMoment = moment(end, isoTimestampFormat);
+  const fixedIntervalDuration = calculateAuto.atLeast(
+    24,
+    moment.duration(endMoment.diff(startMoment))
+  );
+  const fixedIntervalSize = `${fixedIntervalDuration?.asMinutes()}m`;
+
+  return {
+    index,
+    size: 0,
+    track_total_hits: false,
+    query: getCategorizationQuery(messageField, timefield, start, end, ignoredQueries),
+    aggs: randomSampler.wrap({
+      histogram: {
+        date_histogram: {
+          field: '@timestamp',
+          fixed_interval: fixedIntervalSize,
+          extended_bounds: {
+            min: start,
+            max: end,
+          },
+        },
+      },
+      categories: {
+        categorize_text: {
+          field: 'message',
+          size: 1000,
+          categorization_analyzer: {
+            tokenizer: 'standard',
+          },
+          min_doc_count: minDocsPerCategory,
+        },
+        aggs: {
+          histogram: {
+            date_histogram: {
+              field: '@timestamp',
+              fixed_interval: fixedIntervalSize,
+              extended_bounds: {
+                min: start,
+                max: end,
+              },
+            },
+          },
+          change: {
+            // @ts-expect-error
+            change_point: {
+              buckets_path: 'histogram>_count',
+            },
+          },
+        },
+      },
+    }),
+  };
+};
+
+const getCategorizationQuery = (
+  messageField: string,
+  timefield: string,
+  start: string,
+  end: string,
+  ignoredQueries: string[]
+) => {
+  return {
+    bool: {
+      filter: [
+        {
+          exists: {
+            field: messageField,
+          },
+        },
+        {
+          range: {
+            [timefield]: {
+              gte: start,
+              lte: end,
+              format: 'strict_date_time',
+            },
+          },
+        },
+      ],
+      must_not: ignoredQueries.map((ignoredQuery) => ({
+        match: {
+          [messageField]: {
+            query: ignoredQuery,
+            operator: 'AND',
+
+            fuzziness: 0,
+            auto_generate_synonyms_phrase_query: false,
+          },
+        },
+      })),
+    },
+  };
 };
