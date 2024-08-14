@@ -14,9 +14,11 @@ import {
   EuiDataGrid,
   EuiDataGridColumn,
   EuiDataGridPaginationProps,
+  EuiFlexGroup,
+  EuiFlexItem,
+  EuiSwitch,
   RenderCellValue,
 } from '@elastic/eui';
-import { AiopsLogRateAnalysisAPIResponse } from '@kbn/aiops-api-plugin/common';
 import { ChartsPluginStart } from '@kbn/charts-plugin/public';
 import { IUiSettingsClient } from '@kbn/core-ui-settings-browser';
 import { FieldFormatsStart } from '@kbn/field-formats-plugin/public';
@@ -25,12 +27,10 @@ import useAsyncFn from 'react-use/lib/useAsyncFn';
 import { FormattedDate } from '@kbn/i18n-react';
 import type { LogAnalysisServiceStart } from '../../services/log_analysis';
 import {
+  LogCategoriesAnalysisParams,
   LogCategoriesAnalysisResults,
-  LogCategoryAnalysisResult,
 } from '../../services/log_analysis/types';
 import { MiniHistogram } from './mini_histogram';
-
-type LogRateAnalysisResult = AiopsLogRateAnalysisAPIResponse;
 
 export interface LogsAnalysisDependencies {
   charts: ChartsPluginStart;
@@ -47,7 +47,11 @@ export interface LogsAnalysisProps {
   dependencies: LogsAnalysisDependencies;
 }
 
+type SamplingMode = LogCategoriesAnalysisParams['sampling']['mode'];
+
 export const LogsAnalysis: React.FC<LogsAnalysisProps> = ({ dateRange, dependencies }) => {
+  const [samplingMode, setSamplingMode] = useState<'auto' | 'none'>('auto');
+
   const [analysis, performAnalysis] = useAsyncFn(async () => {
     return await dependencies.logsAnalysis.client.getLogCategoriesAnalysis({
       start: dateRange.from,
@@ -55,21 +59,39 @@ export const LogsAnalysis: React.FC<LogsAnalysisProps> = ({ dateRange, dependenc
       index: 'logs-*-*',
       timefield: '@timestamp',
       messageField: 'message',
-      // sampling: { mode: 'auto' },
-      sampling: { mode: 'none' },
+      sampling: { mode: samplingMode },
     });
-  }, [dateRange.from, dateRange.to, dependencies.logsAnalysis]);
+  }, [dateRange.from, dateRange.to, dependencies.logsAnalysis, samplingMode]);
 
   if (analysis.loading) {
-    return <div>Loading...</div>;
+    return (
+      <LogsAnalysisLoadingState
+        onAnalyzeLogs={performAnalysis}
+        onChangeSamplingMode={setSamplingMode}
+        samplingMode={samplingMode}
+      />
+    );
   }
 
   if (analysis.error) {
-    return <LogAnalysisError analysisError={analysis.error} onAnalyzeLogs={performAnalysis} />;
+    return (
+      <LogAnalysisError
+        analysisError={analysis.error}
+        onAnalyzeLogs={performAnalysis}
+        onChangeSamplingMode={setSamplingMode}
+        samplingMode={samplingMode}
+      />
+    );
   }
 
   if (!analysis.value) {
-    return <LogsAnalysisEmptyState onAnalyzeLogs={performAnalysis} />;
+    return (
+      <LogsAnalysisEmptyState
+        onAnalyzeLogs={performAnalysis}
+        onChangeSamplingMode={setSamplingMode}
+        samplingMode={samplingMode}
+      />
+    );
   }
 
   return (
@@ -77,30 +99,70 @@ export const LogsAnalysis: React.FC<LogsAnalysisProps> = ({ dateRange, dependenc
       analysisResults={analysis.value}
       dependencies={dependencies}
       onAnalyzeLogs={performAnalysis}
+      onChangeSamplingMode={setSamplingMode}
+      samplingMode={samplingMode}
     />
   );
 };
 
 const LogsAnalysisEmptyState: React.FC<{
   onAnalyzeLogs: () => void;
-}> = ({ onAnalyzeLogs }) => {
+  onChangeSamplingMode: (mode: 'auto' | 'none') => void;
+  samplingMode: SamplingMode;
+}> = ({ onAnalyzeLogs, onChangeSamplingMode, samplingMode }) => {
   return (
     <div>
-      <LogAnalysisControls onAnalyzeLogs={onAnalyzeLogs} />
+      <LogAnalysisControls
+        onAnalyzeLogs={onAnalyzeLogs}
+        onChangeSamplingMode={onChangeSamplingMode}
+        samplingMode={samplingMode}
+      />
     </div>
+  );
+};
+
+const LogsAnalysisLoadingState: React.FC<{
+  onAnalyzeLogs: () => void;
+  onChangeSamplingMode: (mode: 'auto' | 'none') => void;
+  samplingMode: SamplingMode;
+}> = ({ onAnalyzeLogs, onChangeSamplingMode, samplingMode }) => {
+  return (
+    <EuiFlexGroup direction="column">
+      <EuiFlexItem>
+        <LogAnalysisControls
+          disabled
+          onAnalyzeLogs={onAnalyzeLogs}
+          onChangeSamplingMode={onChangeSamplingMode}
+          samplingMode={samplingMode}
+        />
+      </EuiFlexItem>
+      <EuiFlexItem>
+        <div>Loading...</div>
+      </EuiFlexItem>
+    </EuiFlexGroup>
   );
 };
 
 const LogAnalysisError: React.FC<{
   analysisError: Error;
   onAnalyzeLogs: () => void;
-}> = ({ analysisError, onAnalyzeLogs }) => {
+  onChangeSamplingMode: (mode: 'auto' | 'none') => void;
+  samplingMode: SamplingMode;
+}> = ({ analysisError, onAnalyzeLogs, onChangeSamplingMode, samplingMode }) => {
   return (
-    <div>
-      <LogAnalysisControls onAnalyzeLogs={onAnalyzeLogs} />
-      <pre>Error: {analysisError.message}</pre>
-      <pre>Error: {analysisError.stack}</pre>
-    </div>
+    <EuiFlexGroup direction="column">
+      <EuiFlexItem>
+        <LogAnalysisControls
+          onAnalyzeLogs={onAnalyzeLogs}
+          onChangeSamplingMode={onChangeSamplingMode}
+          samplingMode={samplingMode}
+        />
+      </EuiFlexItem>
+      <EuiFlexItem>
+        <pre>Error: {analysisError.message}</pre>
+        <pre>{analysisError.stack}</pre>
+      </EuiFlexItem>
+    </EuiFlexGroup>
   );
 };
 
@@ -110,7 +172,15 @@ const LogAnalysisResults: React.FC<{
   analysisResults: LogCategoriesAnalysisResults;
   dependencies: LogsAnalysisDependencies;
   onAnalyzeLogs: () => void;
-}> = ({ analysisResults, dependencies: { charts, fieldFormats, uiSettings }, onAnalyzeLogs }) => {
+  onChangeSamplingMode: (mode: SamplingMode) => void;
+  samplingMode: SamplingMode;
+}> = ({
+  analysisResults,
+  dependencies: { charts, fieldFormats, uiSettings },
+  onAnalyzeLogs,
+  onChangeSamplingMode,
+  samplingMode,
+}) => {
   const [visibleColumns, setVisibleColumns] = useState(() =>
     categoryChangesGridColumns.map(({ id }) => id)
   );
@@ -195,7 +265,7 @@ const LogAnalysisResults: React.FC<{
           return <EuiBadge>{category.changePoint.type}</EuiBadge>;
         }
       } else if (columnId === 'significance') {
-        return <>{category.changePoint?.pValue ?? 0}</>;
+        return <>{'pValue' in category.changePoint ? category.changePoint.pValue : 0}</>;
       }
 
       return null;
@@ -204,31 +274,58 @@ const LogAnalysisResults: React.FC<{
   );
 
   return (
-    <div>
-      <LogAnalysisControls onAnalyzeLogs={onAnalyzeLogs} />
-      <EuiDataGrid
-        aria-label="Log category analysis results"
-        columns={categoryChangesGridColumns}
-        columnVisibility={{ visibleColumns, setVisibleColumns }}
-        inMemory={gridInMemoryConfig}
-        renderCellValue={renderCategoryChangesCellValue}
-        rowCount={analysisResults.logCategories.length}
-        sorting={{ columns: sortingColumns, onSort }}
-        pagination={{
-          ...pagination,
-          onChangeItemsPerPage,
-          onChangePage,
-        }}
-      />
-    </div>
+    <EuiFlexGroup direction="column">
+      <EuiFlexItem>
+        <LogAnalysisControls
+          onAnalyzeLogs={onAnalyzeLogs}
+          onChangeSamplingMode={onChangeSamplingMode}
+          samplingMode={samplingMode}
+        />
+      </EuiFlexItem>
+      <EuiFlexItem>
+        <EuiDataGrid
+          aria-label="Log category analysis results"
+          columns={categoryChangesGridColumns}
+          columnVisibility={{ visibleColumns, setVisibleColumns }}
+          inMemory={gridInMemoryConfig}
+          renderCellValue={renderCategoryChangesCellValue}
+          rowCount={analysisResults.logCategories.length}
+          sorting={{ columns: sortingColumns, onSort }}
+          pagination={{
+            ...pagination,
+            onChangeItemsPerPage,
+            onChangePage,
+          }}
+        />
+      </EuiFlexItem>
+    </EuiFlexGroup>
   );
 };
 
-const LogAnalysisControls: React.FC<{ onAnalyzeLogs: () => void }> = ({ onAnalyzeLogs }) => {
+const LogAnalysisControls: React.FC<{
+  disabled?: boolean;
+  onAnalyzeLogs: () => void;
+  onChangeSamplingMode: (mode: SamplingMode) => void;
+  samplingMode: SamplingMode;
+}> = ({ disabled = false, onAnalyzeLogs, onChangeSamplingMode, samplingMode }) => {
   return (
-    <div>
-      <EuiButton onClick={() => onAnalyzeLogs()}>Analyze Logs</EuiButton>
-    </div>
+    <EuiFlexGroup justifyContent="flexEnd" alignItems="center">
+      <EuiFlexItem grow={false}>
+        <EuiSwitch
+          disabled={disabled}
+          label="Enable sampling"
+          checked={samplingMode === 'auto'}
+          onChange={(evt) => {
+            onChangeSamplingMode(evt.target.checked ? 'auto' : 'none');
+          }}
+        />
+      </EuiFlexItem>
+      <EuiFlexItem grow={false}>
+        <EuiButton disabled={disabled} onClick={() => onAnalyzeLogs()}>
+          Analyze Logs
+        </EuiButton>
+      </EuiFlexItem>
+    </EuiFlexGroup>
   );
 };
 

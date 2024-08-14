@@ -362,7 +362,6 @@ const getCategorizationQuery = (
           [messageField]: {
             query: ignoredQuery,
             operator: 'AND' as const,
-
             fuzziness: 0,
             auto_generate_synonyms_phrase_query: false,
           },
