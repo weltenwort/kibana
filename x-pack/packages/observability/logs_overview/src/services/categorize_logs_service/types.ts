@@ -6,6 +6,7 @@
  */
 import { QueryDslQueryContainer } from '@elastic/elasticsearch/lib/api/types';
 import { ISearchGeneric } from '@kbn/search-types';
+import { LogCategory } from '../../types';
 
 export interface CategorizeLogsServiceDependencies {
   search: ISearchGeneric;
@@ -18,4 +19,18 @@ export interface LogCategorizationParams {
   messageField: string;
   startTimestamp: string;
   timeField: string;
+}
+
+export interface LogCategorizationResult {
+  categories: LogCategory[];
+  documentCount: number;
+  hasReachedLimit: boolean;
+  samplingProbability: number;
+}
+
+export interface CategorizeLogsService {
+  categorizeLogs: (
+    params: LogCategorizationParams,
+    options?: { abortSignal?: AbortSignal }
+  ) => Promise<LogCategorizationResult>;
 }

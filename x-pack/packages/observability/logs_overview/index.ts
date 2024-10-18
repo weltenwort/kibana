@@ -13,6 +13,15 @@ export {
   type LogsOverviewErrorContentProps,
   type LogsOverviewProps,
 } from './src/components/logs_overview';
+export {
+  categorizeLogsStateMachine,
+  createCategorizeLogsService,
+  createCategorizeLogsStateMachineImplementations,
+  type CategorizeLogsService,
+  type CategorizeLogsServiceDependencies,
+  type LogCategorizationParams,
+  type LogCategorizationResult,
+} from './src/services/categorize_logs_service';
 export type {
   DataViewLogsSourceConfiguration,
   IndexNameLogsSourceConfiguration,

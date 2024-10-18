@@ -11,8 +11,8 @@ import { createConsoleInspector } from '@kbn/xstate-utils';
 import { useMachine } from '@xstate5/react';
 import React, { useCallback } from 'react';
 import {
-  categorizeLogsService,
-  createCategorizeLogsServiceImplementations,
+  categorizeLogsStateMachine,
+  createCategorizeLogsStateMachineImplementations,
 } from '../../services/categorize_logs_service';
 import { IndexNameLogsSourceConfiguration } from '../../utils/logs_source';
 import { LogCategoriesErrorContent } from './log_categories_error_content';
@@ -45,8 +45,8 @@ export const LogCategories: React.FC<LogCategoriesProps> = ({
   timeRange,
 }) => {
   const [categorizeLogsServiceState, sendToCategorizeLogsService] = useMachine(
-    categorizeLogsService.provide(
-      createCategorizeLogsServiceImplementations({ search: dependencies.search })
+    categorizeLogsStateMachine.provide(
+      createCategorizeLogsStateMachineImplementations({ search: dependencies.search })
     ),
     {
       inspect: consoleInspector,
