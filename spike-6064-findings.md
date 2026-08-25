@@ -1,7 +1,3 @@
-# Spike results: attachment renderer mutation without a model turn
-
-Closes the investigation for observability-dev#6064. Branch `logs-exploration-poc-attachment-spike-1`, based on `eb5b384d0226`. All code is throwaway and unmerged.
-
 ## TL;DR
 
 **Yes. A button inside an attachment renderer can change what that attachment displays, with no agent turn and no reasoning latency. But not cleanly on today's `agent_builder`: doing it properly needs a small upstream change there, and without one the renderer has to work around the framework.**
@@ -12,25 +8,19 @@ This is not an invalidation bug. Invalidation already fires and the component al
 
 This unblocks observability-dev#6059. Muting a log pattern does not require a reasoning turn.
 
-There are two viable routes, and **the cheap one is not the one to build**. A workaround inside `observability_agent_builder` works today (~40 lines, one open design question). A proper fix in `agent_builder` is roughly the same size, removes the design question entirely, removes the need for the renderer to self-fetch at all, and is an omission rather than a new capability: an existing internal route already does the right thing. Both are priced below.
-
-Evidence, one card, one instant, no agent turn between:
-
-```
-tool emitted — pinned count 0 (v1 of 1) — live count 3 (v4)
-```
+There are two viable routes, and **the cheap one is not the one to build**. A workaround inside `observability_agent_builder` works today, with one open design question. A proper fix in `agent_builder` removes that question entirely, removes the need for the renderer to self-fetch at all, and is an omission rather than a new capability: an existing internal route already does the right thing. Both are priced below.
 
 ## Acceptance criteria
 
-| #   | Criterion                                                                | Result                                                            |
-| --- | ------------------------------------------------------------------------ | ----------------------------------------------------------------- |
-| 1   | Throwaway type renders inline, emitted by a tool not the model           | Done                                                              |
-| 2   | Button writes new content via the public update endpoint                 | Done. 200, `new_version` increments                               |
-| 3   | Does the inline view reflect the change without an agent turn?           | **Yes, with local work**                                          |
-| 4   | Is the write visible to the next agent turn as a new version?            | **Yes**                                                           |
-| 5   | Can `renderInlineContent` read the current version, or only the round's? | **Props are pinned; the renderer can still fetch current itself** |
-| 6   | Plumbing cost estimate for the real PoC                                  | Below                                                             |
-| 7   | Is `maxContentLength` a constraint for a dense payload?                  | **No, it is not enforced at all**                                 |
+| #   | Criterion                                                                | Result                                                                                                                               |
+| --- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | Throwaway type renders inline, emitted by a tool not the model           | Done                                                                                                                                 |
+| 2   | Button writes new content via the public update endpoint                 | Done. 200, `new_version` increments                                                                                                  |
+| 3   | Does the inline view reflect the change without an agent turn?           | **Yes, with local work; cleanly with a small upstream change**                                                                       |
+| 4   | Is the write visible to the next agent turn as a new version?            | **Yes**                                                                                                                              |
+| 5   | Can `renderInlineContent` read the current version, or only the round's? | **Only the round's via props today. Current is reachable by self-fetching, and props carry it once the ref is persisted (Option B)** |
+| 6   | Plumbing cost estimate for the real PoC                                  | Below                                                                                                                                |
+| 7   | Is `maxContentLength` a constraint for a dense payload?                  | **No, it is not enforced at all**                                                                                                    |
 
 ## What was built
 
@@ -116,7 +106,17 @@ So 10k does not constrain a dense pattern table today. But the option is unimple
 
 ## AC6: cost estimate
 
-Two routes. Option B is recommended despite being the "upstream" one, because it is no larger than the workaround and solves more.
+Two routes. Option B is recommended despite being the "upstream" one, because it solves more without being meaningfully harder.
+
+|                         | Option A                         | Option B                   |
+| ----------------------- | -------------------------------- | -------------------------- |
+| Current content via     | Renderer self-fetch              | Props                      |
+| Click latency           | ~100–620 ms                      | ~950–980 ms                |
+| `conversationId`        | URL parse, breaks in the sidebar | Supplied by the framework  |
+| Agent/user divergence   | Remains                          | Fixed for the newest round |
+| Scope                   | One plugin, no upstream change   | `agent_builder`, 4 files   |
+| Reusable by other types | No, each renderer repeats it     | Yes                        |
+| Open defects            | None                             | Ref growth, chip labelling |
 
 ### Option A: workaround in `observability_agent_builder`
 
@@ -206,17 +206,6 @@ getActionButtons: ({ attachment, updateContent }) => [
 ```
 
 **This also removes the `conversationId` problem.** `inline_attachment_with_actions.tsx` already receives `conversationId` as a prop and already closes over it for `updateOrigin`. An equivalent `updateContent` closes over it the same way, so the renderer never sees it. No URL parsing, and the sidebar case stops being a problem.
-
-Measured from the actual diff on this branch, not estimated: **63 lines added, 7 removed, across 4 files.**
-
-| File                                            | Added | Removed |
-| ----------------------------------------------- | ----- | ------- |
-| `server/routes/attachments.ts`                  | 22    | 6       |
-| `public/services/.../attachements_service.tsx`  | 26    | 1       |
-| `.../inline_attachment_with_actions.tsx`        | 11    | 0       |
-| `agent-builder-browser/attachments/contract.ts` | 4     | 0       |
-
-Counts include doc comments and the no-rounds fallback branch in the route. The executable core is smaller, roughly half, but the number to plan against is the diff.
 
 **Semantics to agree on.** Refs merge into the **last** round, so a card in the newest round updates in place while a card rendered several rounds ago stays pinned. That is the transcript-fidelity design working as intended, and it is right for the mute-a-pattern flow where the card is the one the agent just produced. The edge case to decide deliberately: muting from an older card that a user has scrolled back to will not visibly change that card. Accepting this initially seems reasonable; the alternatives are to also write a ref to the round containing the render tag, or to show a "newer version available" affordance.
 
