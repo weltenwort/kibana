@@ -59,6 +59,7 @@ import {
   OBSERVABILITY_GET_APM_CORRELATIONS_TOOL_ID,
   createGetApmCorrelationsTool,
 } from './get_apm_correlations/tool';
+import { OBSERVABILITY_SPIKE_COUNTER_TOOL_ID, createSpikeCounterTool } from './spike_counter';
 
 export const PLATFORM_TOOL_IDS = [
   platformCoreTools.listIndices,
@@ -85,6 +86,7 @@ export const OBSERVABILITY_TOOL_IDS = [
   OBSERVABILITY_GET_SERVICE_TOPOLOGY_TOOL_ID,
   OBSERVABILITY_GET_LOGS_TOOL_ID,
   OBSERVABILITY_GET_APM_CORRELATIONS_TOOL_ID,
+  OBSERVABILITY_SPIKE_COUNTER_TOOL_ID,
 ];
 
 export async function registerTools({
@@ -115,6 +117,7 @@ export async function registerTools({
     createGetServiceTopologyTool({ core, plugins, dataRegistry, logger }),
     createGetLogsTool({ core, logger }),
     createGetApmCorrelationsTool({ core, plugins, logger }),
+    createSpikeCounterTool(),
   ];
 
   for (const tool of observabilityTools) {

@@ -45,6 +45,7 @@ export const AGENT_BUILDER_BUILTIN_TOOLS = [
   `${internalNamespaces.observability}.get_runtime_metrics`,
   `${internalNamespaces.observability}.get_logs`,
   `${internalNamespaces.observability}.get_apm_correlations`,
+  `${internalNamespaces.observability}.spike_counter`,
 
   // ML anomaly detection (Agent Builder skill tools)
   `${internalNamespaces.ml}.ad_get_job_info`,
@@ -337,6 +338,7 @@ export const AGENT_BUILDER_BUILTIN_ATTACHMENTS = [
   'observability.host',
   'observability.transaction',
   'observability.synthetics_monitor',
+  'observability.spike_counter',
 
   // Observability – APM
   'observability.service-map',

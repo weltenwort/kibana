@@ -21,6 +21,7 @@ import { createSloAttachmentType } from './slo';
 import { createHostAttachmentType } from './host';
 import { createTransactionAttachmentType } from './transaction';
 import { createMonitorAttachmentType } from './monitor';
+import { createSpikeCounterAttachmentType } from './spike_counter';
 
 export async function registerAttachments({
   core,
@@ -43,6 +44,7 @@ export async function registerAttachments({
     createHostAttachmentType({ logger, dataRegistry }),
     createTransactionAttachmentType({ logger, dataRegistry }),
     createMonitorAttachmentType({ logger, dataRegistry }),
+    createSpikeCounterAttachmentType(),
   ];
 
   for (const attachment of attachmentTypes) {

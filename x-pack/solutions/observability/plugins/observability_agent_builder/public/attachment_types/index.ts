@@ -6,6 +6,7 @@
  */
 
 import { i18n } from '@kbn/i18n';
+import type { HttpStart } from '@kbn/core/public';
 import type { AttachmentServiceStartContract } from '@kbn/agent-builder-browser';
 import type { Attachment } from '@kbn/agent-builder-common/attachments';
 import {
@@ -18,7 +19,9 @@ import {
   OBSERVABILITY_SLO_ATTACHMENT_TYPE_ID,
   OBSERVABILITY_TRANSACTION_ATTACHMENT_TYPE_ID,
   OBSERVABILITY_MONITOR_ATTACHMENT_TYPE_ID,
+  OBSERVABILITY_SPIKE_COUNTER_ATTACHMENT_TYPE_ID,
 } from '../../common/constants';
+import { createSpikeCounterUiDefinition } from './spike_counter';
 
 type UnknownAttachmentWithLabel = Attachment<
   string,
@@ -116,4 +119,18 @@ export const registerAttachmentUiDefinitions = ({
       createAttachmentTypeConfig(label, icon)
     );
   });
+};
+
+/** Throwaway registration for the attachment mutation spike (observability-dev#6064). */
+export const registerSpikeCounterUiDefinition = ({
+  attachments,
+  http,
+}: {
+  attachments: AttachmentServiceStartContract;
+  http: HttpStart;
+}) => {
+  attachments.addAttachmentType(
+    OBSERVABILITY_SPIKE_COUNTER_ATTACHMENT_TYPE_ID,
+    createSpikeCounterUiDefinition({ http })
+  );
 };

@@ -18,7 +18,10 @@ import {
   createLogAIInsight,
   createLogsAIInsightRenderer,
 } from './components/insights';
-import { registerAttachmentUiDefinitions } from './attachment_types';
+import {
+  registerAttachmentUiDefinitions,
+  registerSpikeCounterUiDefinition,
+} from './attachment_types';
 import { registerTelemetryEventTypes } from './analytics';
 
 export class ObservabilityAgentBuilderPlugin
@@ -56,6 +59,11 @@ export class ObservabilityAgentBuilderPlugin
 
     registerAttachmentUiDefinitions({
       attachments: plugins.agentBuilder.attachments,
+    });
+
+    registerSpikeCounterUiDefinition({
+      attachments: plugins.agentBuilder.attachments,
+      http: core.http,
     });
 
     return {
