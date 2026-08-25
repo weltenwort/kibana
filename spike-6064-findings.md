@@ -8,7 +8,7 @@ This is not an invalidation bug. Invalidation already fires and the component al
 
 This unblocks observability-dev#6059. Muting a log pattern does not require a reasoning turn.
 
-There are two viable routes, and **the cheap one is not the one to build**. A workaround inside `observability_agent_builder` works today, with one open design question. A proper fix in `agent_builder` removes that question entirely, removes the need for the renderer to self-fetch at all, and is an omission rather than a new capability: an existing internal route already does the right thing. Both are priced below.
+There are two viable routes, and **the cheap one is not the one to build**. A workaround inside `observability_agent_builder` works today, with one open design question. A proper fix in `agent_builder` removes that question entirely, removes the need for the renderer to self-fetch at all, and is an omission rather than a new capability: an existing internal route already does the right thing. Both are set out below.
 
 ## Acceptance criteria
 
@@ -32,8 +32,6 @@ There are two viable routes, and **the cheap one is not the one to build**. A wo
 | Browser UI definition                  | `.../observability_agent_builder/public/attachment_types/spike_counter.tsx`         |
 
 `validate` accepts `{ count, label }`; `format` renders text. The tool handler builds the payload server-side and returns `attachment_ids` so the agent can reference it. The model supplies only a label.
-
-**The allow-list edit must not be PR'd.** It is a local-only unblock, as the issue specifies.
 
 ## AC3 / AC5: the mechanism, in detail
 
@@ -77,8 +75,8 @@ All while `versions[]` held v1 through v4.
 
 ### What this rules out
 
-- **Waiting for invalidation.** During testing `versionCount` updated 1 → 2 on its own, proving the conversation _was_ refetched and the component _did_ re-render with fresh data, and it still drew v1. This is not a caching problem.
-- **Piggybacking `updateOrigin`** to force `invalidateConversation()`. Tested; still v1. It buys a re-render the code already gets for free.
+- **Waiting for invalidation.** `versionCount` updates on its own, so the conversation is refetched and the component re-renders with fresh data, and still draws v1. This is not a caching problem.
+- **Piggybacking `updateOrigin`** to force `invalidateConversation()`. Still v1. It buys a re-render the code already gets for free.
 
 ### What does work
 
@@ -135,9 +133,9 @@ Two routes. Option B is recommended despite being the "upstream" one, because it
 - The agent/user divergence in AC4 remains unfixed: the card is patched, but the round's ref still says v1
 - Each mutating renderer re-implementing this independently
 
-### Option B: fix it properly in `agent_builder` (recommended, and now verified)
+### Option B: fix it properly in `agent_builder` (recommended)
 
-**This was built and confirmed working, not just hypothesised.** With both halves in place the card advanced on each click with no agent turn:
+Both halves were implemented and verified. The card advanced on each click with no agent turn:
 
 ```
 option b count 0 (rendered v1 of 1)
@@ -239,7 +237,7 @@ This is a pre-existing mismatch rather than something Option B breaks. Until now
 
 ### Recommendation
 
-Build Option B. It is comparable in size to the workaround, removes the `conversationId` design question, and benefits every future mutable attachment type. It fixes the agent/user divergence for the newest round, which is where the mute-a-pattern interaction happens; a card several rounds back stays pinned by design, so a user scrolled up to an old card can still read a different value than the agent does. It has been implemented and verified on this branch, so the estimate is measured rather than guessed.
+Build Option B. It removes the `conversationId` design question, and benefits every future mutable attachment type. It fixes the agent/user divergence for the newest round, which is where the mute-a-pattern interaction happens; a card several rounds back stays pinned by design, so a user scrolled up to an old card can still read a different value than the agent does.
 
 Two open items before it ships: the unbounded ref growth described above, which is a correctness concern rather than a cosmetic one, and the chip labelling and placement, which is cosmetic. Both need `agent_builder` team ownership, which is the only reason they were not resolved here.
 
