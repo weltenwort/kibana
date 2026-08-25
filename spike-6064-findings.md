@@ -1,8 +1,8 @@
 ## TL;DR
 
-**Yes. A button inside an attachment renderer can change what that attachment displays, with no agent turn and no reasoning latency. But not cleanly on today's `agent_builder`: doing it properly needs a small upstream change there, and without one the renderer has to work around the framework.**
+**Yes. A button inside an attachment renderer can change what that attachment displays, with no agent turn and no reasoning latency. But not cleanly on today's `agent_builder`: doing it cleanly needs a small upstream change there, and without one the renderer has to work around the framework.**
 
-The framework pins each rendered attachment to a specific version, and the public update endpoint does not participate in that mechanism. It computes the ref that would move the pin, then throws it away. So **as the code stands today**, the only way to show current _server-authoritative_ content is for the renderer to bypass the data the framework hands it and fetch the attachment itself. That works, and is demonstrated below. Local component state would also satisfy the literal question of "does the view change on click", since React state survives re-render and the memo key does not change, but it is optimistic rather than authoritative and is lost on reload.
+The framework pins each rendered attachment to a specific version, and the public update endpoint does not participate in that mechanism. It computes the ref that would move the pin, but does not persist it. So **as the code stands today**, the only way to show current _server-authoritative_ content is for the renderer to bypass the data the framework hands it and fetch the attachment itself. That works, and is demonstrated below. Local component state would also satisfy the literal question of "does the view change on click", since React state survives re-render and the memo key does not change, but it is optimistic rather than authoritative and is lost on reload.
 
 This is not an invalidation bug. Invalidation already fires and the component already re-renders with fresh data, and it still draws the old version, because the pin is what holds it there. (Option B does add an explicit invalidation call, but as a deterministic trigger rather than a fix.)
 
@@ -62,7 +62,7 @@ Rule 2 fires whenever any ref exists and permanently shadows rule 3.
 
 Only the agent-turn pipeline writes refs. The state manager records every touch via `recordAccess`, and `add_round_complete_event.ts` drains it with `getAccessedRefs()` onto the round.
 
-The `PUT /conversations/{id}/attachments/{id}` route builds its own state manager and calls `update()`, which **does** call `recordAccess(id, v2, 'updated')`, so a correct `updated@v2` ref is constructed in memory. The route then persists only `attachments: stateManager.getAll()` and never calls `getAccessedRefs()`. The ref is computed and thrown away. Nothing is written to `rounds`.
+The `PUT /conversations/{id}/attachments/{id}` route builds its own state manager and calls `update()`, which **does** call `recordAccess(id, v2, 'updated')`, so a correct `updated@v2` ref is constructed in memory. The route then persists only `attachments: stateManager.getAll()` and never calls `getAccessedRefs()`, so the ref is computed but not stored. Nothing is written to `rounds`.
 
 Observed in a real conversation:
 
@@ -122,7 +122,7 @@ Two routes. Option B is recommended despite being the "upstream" one, because it
 
 **Required**
 
-- Self-fetch hook in the renderer, ~40 lines
+- Self-fetch hook in the renderer
 - Read-modify-write in the mutate handler. Not optional: computing from pinned props always writes the same value, so clicks stop advancing after the first
 - A way to obtain `conversationId`. **This is the one real design question.** `AttachmentRenderProps` and `GetActionButtonsParams` do not carry it. The spike parses it from `window.location.pathname`, which works in the full app and **breaks in the sidebar**, where the id lives only in React context.
 
@@ -133,7 +133,7 @@ Two routes. Option B is recommended despite being the "upstream" one, because it
 - The agent/user divergence in AC4 remains unfixed: the card is patched, but the round's ref still says v1
 - Each mutating renderer re-implementing this independently
 
-### Option B: fix it properly in `agent_builder` (recommended)
+### Option B: fix it upstream in `agent_builder` (recommended)
 
 Both halves were implemented and verified. The card advanced on each click with no agent turn:
 
@@ -150,12 +150,12 @@ It is still read-modify-write, and that matters. The handler spreads current dat
 
 Two halves. Neither requires the renderer to fetch anything.
 
-**Half 1, server: stop discarding the ref that is already computed.**
+**Half 1, server: persist the ref that is already computed.**
 
-`stateManager.update()` already calls `recordAccess(id, v2, 'updated')`. The route just never persists it. `POST /internal/…/sml` (`routes/internal/sml.ts:117`) is an existing out-of-band route (no agent turn) that does this correctly:
+`stateManager.update()` already calls `recordAccess(id, v2, 'updated')`, but the route does not persist it. `POST /internal/…/sml` (`routes/internal/sml.ts:117`) is an existing out-of-band route (no agent turn) that shows the pattern:
 
 ```ts
-// today, in the content-update route: persists content, drops the ref
+// today, in the content-update route: persists content, not the ref
 await client.update({
   id: conversationId,
   attachments: stateManager.getAll(),
