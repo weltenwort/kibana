@@ -63,7 +63,6 @@ export class ObservabilityAgentBuilderPlugin
 
     registerSpikeCounterUiDefinition({
       attachments: plugins.agentBuilder.attachments,
-      http: core.http,
     });
 
     return {

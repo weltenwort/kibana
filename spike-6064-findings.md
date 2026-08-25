@@ -6,7 +6,7 @@ Closes the investigation for observability-dev#6064. Branch `logs-exploration-po
 
 **Yes. A button inside an attachment renderer can change what that attachment displays, with no agent turn and no reasoning latency. But not cleanly on today's `agent_builder`: doing it properly needs a small upstream change there, and without one the renderer has to work around the framework.**
 
-The framework pins each rendered attachment to a specific version, and the public update endpoint does not participate in that mechanism. It computes the ref that would move the pin, then throws it away. So **as the code stands today**, the only way to show current content is for the renderer to bypass the data the framework hands it and fetch the attachment itself. That works, and is demonstrated below.
+The framework pins each rendered attachment to a specific version, and the public update endpoint does not participate in that mechanism. It computes the ref that would move the pin, then throws it away. So **as the code stands today**, the only way to show current _server-authoritative_ content is for the renderer to bypass the data the framework hands it and fetch the attachment itself. That works, and is demonstrated below. Local component state would also satisfy the literal question of "does the view change on click", since React state survives re-render and the memo key does not change, but it is optimistic rather than authoritative and is lost on reload.
 
 This is not an invalidation bug. Invalidation already fires and the component already re-renders with fresh data, and it still draws the old version, because the pin is what holds it there. (Option B does add an explicit invalidation call, but as a deterministic trigger rather than a fix.)
 
@@ -135,7 +135,20 @@ Two routes. Option B is recommended despite being the "upstream" one, because it
 - The agent/user divergence in AC4 remains unfixed: the card is patched, but the round's ref still says v1
 - Each mutating renderer re-implementing this independently
 
-### Option B: fix it properly in `agent_builder` (recommended)
+### Option B: fix it properly in `agent_builder` (recommended, and now verified)
+
+**This was built and confirmed working, not just hypothesised.** With both halves in place the card advanced on each click with no agent turn:
+
+```
+option b count 0 (rendered v1 of 1)
+option b count 1 (rendered v2 of 2)
+option b count 2 (rendered v3 of 3)
+option b count 3 (rendered v4 of 4)
+```
+
+The renderer reads `props.attachment.data` only. No self-fetch and no URL parsing. Round trip including the invalidation refetch was **~950–980 ms**, against ~100–620 ms for the bare PUT in Option A, so the correctness comes at the cost of one refetch.
+
+It is still read-modify-write, and that matters. The handler spreads current data and increments it (`{ ...attachment.data, count: count + 1 }`). What Option B removes is the explicit GET, not the pattern. The update endpoint takes no expected-version precondition, so two clients clicking at the same time can both read v4 and both write v5, and one edit is silently lost. For a mute toggle, where the write is idempotent and sets an absolute value rather than deriving one, this does not bite. For anything that increments or appends, it does, and the endpoint would need a version precondition.
 
 Two halves. Neither requires the renderer to fetch anything.
 
@@ -194,18 +207,52 @@ getActionButtons: ({ attachment, updateContent }) => [
 
 **This also removes the `conversationId` problem.** `inline_attachment_with_actions.tsx` already receives `conversationId` as a prop and already closes over it for `updateOrigin`. An equivalent `updateContent` closes over it the same way, so the renderer never sees it. No URL parsing, and the sidebar case stops being a problem.
 
-| Part                                   | Scope                             |
-| -------------------------------------- | --------------------------------- |
-| Route swap + actor                     | ~6 lines, `routes/attachments.ts` |
-| `updateContent` on the browser service | ~10 lines                         |
-| Callback wiring                        | ~15 lines, 2 files                |
-| Contract additions                     | 2 optional fields                 |
+Measured from the actual diff on this branch, not estimated: **63 lines added, 7 removed, across 4 files.**
+
+| File                                            | Added | Removed |
+| ----------------------------------------------- | ----- | ------- |
+| `server/routes/attachments.ts`                  | 22    | 6       |
+| `public/services/.../attachements_service.tsx`  | 26    | 1       |
+| `.../inline_attachment_with_actions.tsx`        | 11    | 0       |
+| `agent-builder-browser/attachments/contract.ts` | 4     | 0       |
+
+Counts include doc comments and the no-rounds fallback branch in the route. The executable core is smaller, roughly half, but the number to plan against is the diff.
 
 **Semantics to agree on.** Refs merge into the **last** round, so a card in the newest round updates in place while a card rendered several rounds ago stays pinned. That is the transcript-fidelity design working as intended, and it is right for the mute-a-pattern flow where the card is the one the agent just produced. The edge case to decide deliberately: muting from an older card that a user has scrolled back to will not visibly change that card. Accepting this initially seems reasonable; the alternatives are to also write a ref to the round containing the render tag, or to show a "newer version available" affordance.
 
+**Two defects this surfaced, both consequences of setting `actor: user`.** Neither affects version resolution, which stays correct because `computeCumulativeRefs` takes the max. One is cosmetic, one is not. Both need an owner decision.
+
+After four versions the round held:
+
+```json
+[
+  { "attachment_id": "d4f8983f…", "version": 1, "operation": "created", "actor": "system" },
+  { "attachment_id": "d4f8983f…", "version": 2, "operation": "updated", "actor": "user" },
+  { "attachment_id": "d4f8983f…", "version": 3, "operation": "updated", "actor": "user" },
+  { "attachment_id": "d4f8983f…", "version": 4, "operation": "updated", "actor": "user" }
+]
+```
+
+**1. Refs accumulate on every write. This one is not cosmetic.** `mergeAttachmentRefs` keys on `id:version:actor`, keeping an audit entry per touch rather than collapsing per attachment. Two separate consequences follow, and they need separating:
+
+- **Persisted growth (the real problem).** The round's ref array grows by one entry per click, permanently, inside the conversation saved object. During an agent turn this is bounded and is a useful audit trail. Once users edit out of band it is unbounded and user-driven. A session that mutes a few dozen patterns writes a few dozen refs into a single round, and every subsequent conversation read and write carries them. This has storage and read-path cost and should be treated as a correctness issue, not a display one.
+- **Duplicate chips (cosmetic).** `round_attachment_references.tsx` renders one chip per ref, so the list showed three duplicate "Spike counter" chips.
+
+Fixing the display alone leaves the growth in place, so these want deciding independently. Collapsing inside the update route does not fix the growth either, because the merge runs against refs already stored on the round. Three places to intervene:
+
+- de-duplicate by `attachment_id` at merge time, which fixes both but changes shared semantics the agent path also relies on
+- de-duplicate at display time in `round_attachment_references.tsx`, which already has the right shape (`seenGroupIds` collapses refs sharing a `group_id`, it is simply keyed on the wrong field) but fixes only the chips
+- give successive versions a shared `group_id`, which reuses the existing collapse path unchanged and again fixes only the chips
+
+**2. Chips render against the user's prompt, under a header that says "Added". Cosmetic.** Placement is decided purely by `actor`, not by which message renders the attachment. The same `round.input.attachment_refs` array feeds two `RoundAttachmentReferences` instances: `round_input.tsx` filters `[user]`, `round_layout.tsx` filters `[agent, system]`. Setting `actor: user` therefore moves the chips beside the prompt, and the header is hardcoded to `labels.added` with no branch on operation, so `updated` refs appear under "Added".
+
+This is a pre-existing mismatch rather than something Option B breaks. Until now `user` refs only ever came from genuine pre-send attachments, where "Added" beside the prompt is accurate. An out-of-band edit is the first thing to violate that assumption. The options are to label by operation, or to accept that `actor` doubles as a layout hint and record button-driven edits as `system` instead, which costs the attribution the actor change was meant to buy.
+
 ### Recommendation
 
-Build Option B. It is comparable in size to the workaround, removes the `conversationId` design question, fixes the agent/user divergence rather than hiding it, and benefits every future mutable attachment type. It needs `agent_builder` team ownership, which is the only reason it was not done here.
+Build Option B. It is comparable in size to the workaround, removes the `conversationId` design question, and benefits every future mutable attachment type. It fixes the agent/user divergence for the newest round, which is where the mute-a-pattern interaction happens; a card several rounds back stays pinned by design, so a user scrolled up to an old card can still read a different value than the agent does. It has been implemented and verified on this branch, so the estimate is measured rather than guessed.
+
+Two open items before it ships: the unbounded ref growth described above, which is a correctness concern rather than a cosmetic one, and the chip labelling and placement, which is cosmetic. Both need `agent_builder` team ownership, which is the only reason they were not resolved here.
 
 ## Follow-ups
 

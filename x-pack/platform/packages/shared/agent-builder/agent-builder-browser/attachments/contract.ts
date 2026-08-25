@@ -58,6 +58,8 @@ export interface CanvasRenderCallbacks {
 export interface InlineRenderCallbacks {
   /** Register action buttons to display in the inline attachment header */
   registerActionButtons: (buttons: ActionButton[]) => void;
+  /** Writes new content for the attachment and refreshes the rendered view. */
+  updateContent?: (data: unknown, description?: string) => Promise<void>;
 }
 
 /**
@@ -74,6 +76,8 @@ export interface GetActionButtonsParams<TAttachment extends UnknownAttachment = 
   agentId?: string;
   /** Function to update the attachment's origin reference */
   updateOrigin: (origin: string) => Promise<UpdateOriginResponse | undefined>;
+  /** Writes new content for the attachment and refreshes the rendered view. */
+  updateContent?: (data: unknown, description?: string) => Promise<void>;
   /** Callback to open the attachment in canvas mode (expanded flyout view). Undefined when already in canvas mode. */
   openCanvas?: () => void;
   /** Callback to dismiss the canvas. Undefined when not in canvas mode. */

@@ -84,6 +84,14 @@ const InlineAttachmentWithActionsComponent: React.FC<InlineAttachmentWithActions
     [attachmentsService, conversationId, attachment.id, conversationActions]
   );
 
+  const updateContent = useCallback(
+    async (data: unknown, description?: string) => {
+      await attachmentsService.updateContent(conversationId, attachment.id, data, description);
+      conversationActions.invalidateConversation();
+    },
+    [attachmentsService, conversationId, attachment.id, conversationActions]
+  );
+
   const openSidebarConversation = useCallback(() => {
     openSidebarConversationInternal({ conversationId });
   }, [conversationId, openSidebarConversationInternal]);
@@ -112,6 +120,7 @@ const InlineAttachmentWithActionsComponent: React.FC<InlineAttachmentWithActions
         isSidebar,
         agentId,
         updateOrigin,
+        updateContent,
         openCanvas,
         openSidebarConversation: isSidebar ? undefined : openSidebarConversation,
         isCanvas: false,
@@ -127,6 +136,7 @@ const InlineAttachmentWithActionsComponent: React.FC<InlineAttachmentWithActions
       isSidebar,
       agentId,
       updateOrigin,
+      updateContent,
       openCanvas,
       setPreviewedAttachmentKey,
       attachmentPreviewKey,
@@ -202,6 +212,7 @@ const InlineAttachmentWithActionsComponent: React.FC<InlineAttachmentWithActions
                 },
                 {
                   registerActionButtons,
+                  updateContent,
                 }
               )
             }
