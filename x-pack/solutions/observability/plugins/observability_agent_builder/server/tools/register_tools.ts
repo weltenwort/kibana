@@ -59,6 +59,14 @@ import {
   OBSERVABILITY_GET_APM_CORRELATIONS_TOOL_ID,
   createGetApmCorrelationsTool,
 } from './get_apm_correlations/tool';
+import {
+  OBSERVABILITY_GET_LOG_PATTERNS_TOOL_ID,
+  createGetLogPatternsTool,
+} from './get_log_patterns/tool';
+import {
+  OBSERVABILITY_GET_LOG_VOLUME_COMPARISON_TOOL_ID,
+  createGetLogVolumeComparisonTool,
+} from './get_log_volume_comparison/tool';
 
 export const PLATFORM_TOOL_IDS = [
   platformCoreTools.listIndices,
@@ -85,6 +93,11 @@ export const OBSERVABILITY_TOOL_IDS = [
   OBSERVABILITY_GET_SERVICE_TOPOLOGY_TOOL_ID,
   OBSERVABILITY_GET_LOGS_TOOL_ID,
   OBSERVABILITY_GET_APM_CORRELATIONS_TOOL_ID,
+];
+
+export const OBSERVABILITY_LOGS_EXPLORATION_TOOL_IDS = [
+  OBSERVABILITY_GET_LOG_PATTERNS_TOOL_ID,
+  OBSERVABILITY_GET_LOG_VOLUME_COMPARISON_TOOL_ID,
 ];
 
 export async function registerTools({
@@ -115,6 +128,8 @@ export async function registerTools({
     createGetServiceTopologyTool({ core, plugins, dataRegistry, logger }),
     createGetLogsTool({ core, logger }),
     createGetApmCorrelationsTool({ core, plugins, logger }),
+    createGetLogPatternsTool({ core, plugins, logger }),
+    createGetLogVolumeComparisonTool({ core, plugins, logger }),
   ];
 
   for (const tool of observabilityTools) {

@@ -20,6 +20,7 @@ const mockOpenCanvas = jest.fn();
 const mockSetPreviewedAttachmentKey = jest.fn();
 const mockInvalidateConversation = jest.fn();
 const mockOpenSidebarConversation = jest.fn();
+const mockSubmitMessage = jest.fn();
 
 jest.mock('./canvas_context', () => ({
   getAttachmentPreviewKey: (attachmentId: string, version?: number) =>
@@ -39,6 +40,10 @@ jest.mock('../../../../../context/conversation/conversation_context', () => ({
 
 jest.mock('../../../../../hooks/use_conversation', () => ({
   useAgentId: () => 'agent-1',
+}));
+
+jest.mock('../../../../../hooks/use_submit_message', () => ({
+  useSubmitMessage: () => mockSubmitMessage,
 }));
 
 jest.mock('../../../../../hooks/use_agent_builder_service', () => ({

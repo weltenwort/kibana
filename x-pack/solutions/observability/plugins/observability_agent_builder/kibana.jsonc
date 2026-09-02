@@ -20,6 +20,7 @@
       "inference",
       "discoverShared",
       "licensing",
+      "charts",
       "searchInferenceEndpoints"
     ],
     "optionalPlugins": ["ml", "spaces", "cloud"],

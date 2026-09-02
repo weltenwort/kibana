@@ -15,8 +15,24 @@ export {
   OBSERVABILITY_HOST_ATTACHMENT_TYPE_ID,
   OBSERVABILITY_TRANSACTION_ATTACHMENT_TYPE_ID,
   OBSERVABILITY_MONITOR_ATTACHMENT_TYPE_ID,
+  OBSERVABILITY_LOG_EXPLORATION_ATTACHMENT_TYPE_ID,
   OBSERVABILITY_AI_INSIGHTS_INFERENCE_PARENT_FEATURE_ID,
   OBSERVABILITY_AI_INSIGHTS_SUBFEATURE_ID,
 } from './constants';
+
+export {
+  logExplorationDataSchema,
+  MAX_PATTERNS,
+  MAX_MUTED_PATTERNS,
+  MAX_SPARKLINE_BUCKETS,
+  MAX_HISTOGRAM_BUCKETS,
+} from './log_exploration';
+export type {
+  LogExplorationData,
+  LogExplorationPattern,
+  LogExplorationTimeRange,
+  LogExplorationHistogram,
+  LogExplorationLoopState,
+} from './log_exploration';
 
 export type { ConnectorInfo } from './types';

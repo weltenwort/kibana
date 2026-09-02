@@ -58,6 +58,14 @@ export interface CanvasRenderCallbacks {
 export interface InlineRenderCallbacks {
   /** Register action buttons to display in the inline attachment header */
   registerActionButtons: (buttons: ActionButton[]) => void;
+  /**
+   * Persist new content for the attachment, creating a new version.
+   * Resolves once persisted and rejects if the write failed. Does NOT invalidate the
+   * conversation, so the renderer keeps rendering its own state until the next refetch.
+   */
+  updateContent?: (data: unknown, description?: string) => Promise<void>;
+  /** Submit a new user turn into the conversation this attachment is rendered in. */
+  submitMessage?: (message: string) => void;
 }
 
 /**
@@ -74,6 +82,13 @@ export interface GetActionButtonsParams<TAttachment extends UnknownAttachment = 
   agentId?: string;
   /** Function to update the attachment's origin reference */
   updateOrigin: (origin: string) => Promise<UpdateOriginResponse | undefined>;
+  /**
+   * Persist new content for the attachment, creating a new version.
+   * Resolves once persisted and rejects if the write failed.
+   */
+  updateContent?: (data: unknown, description?: string) => Promise<void>;
+  /** Submit a new user turn into the conversation this attachment is rendered in. */
+  submitMessage?: (message: string) => void;
   /** Callback to open the attachment in canvas mode (expanded flyout view). Undefined when already in canvas mode. */
   openCanvas?: () => void;
   /** Callback to dismiss the canvas. Undefined when not in canvas mode. */

@@ -1,0 +1,1 @@
+Interactive log exploration. Groups logs into patterns with trend sparklines, or charts log volume against an earlier baseline epoch, and renders the result as a view the user filters directly. Use this whenever the user wants to explore, sift or narrow down logs rather than retrieve specific documents.

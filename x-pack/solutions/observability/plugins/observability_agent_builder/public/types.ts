@@ -9,6 +9,7 @@ import type { AgentBuilderPluginStart } from '@kbn/agent-builder-browser';
 import type { DiscoverSharedPublicStart } from '@kbn/discover-shared-plugin/public';
 import type { InferencePublicStart } from '@kbn/inference-plugin/public';
 import type { LicensingPluginStart } from '@kbn/licensing-plugin/public';
+import type { ChartsPluginStart } from '@kbn/charts-plugin/public';
 import type { AlertAiInsightProps, ErrorSampleAiInsightProps } from './components/insights';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
@@ -27,4 +28,5 @@ export interface ObservabilityAgentBuilderPluginStartDependencies {
   agentBuilder: AgentBuilderPluginStart;
   inference: InferencePublicStart;
   licensing: LicensingPluginStart;
+  charts: ChartsPluginStart;
 }

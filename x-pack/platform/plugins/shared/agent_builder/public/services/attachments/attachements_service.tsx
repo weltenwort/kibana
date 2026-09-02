@@ -12,7 +12,10 @@ import type {
 } from '@kbn/agent-builder-common/attachments';
 import type { AttachmentUIDefinition } from '@kbn/agent-builder-browser';
 import { publicApiPath } from '../../../common/constants';
-import type { CheckStaleAttachmentsResponse } from '../../../common/http_api/attachments';
+import type {
+  CheckStaleAttachmentsResponse,
+  UpdateAttachmentResponse,
+} from '../../../common/http_api/attachments';
 
 /**
  * Internal service for managing attachment UI definitions and API operations.
@@ -83,6 +86,28 @@ export class AttachmentsService {
       `${publicApiPath}/conversations/${conversationId}/attachments/${attachmentId}/origin`,
       {
         body: JSON.stringify({ origin }),
+      }
+    );
+  }
+
+  /**
+   * Updates the content of an attachment, creating a new version when the content changed.
+   *
+   * @param conversationId - The conversation containing the attachment
+   * @param attachmentId - The ID of the attachment to update
+   * @param data - The new attachment content, validated server-side by the attachment type
+   * @param description - Optional new description
+   */
+  async updateContent(
+    conversationId: string,
+    attachmentId: string,
+    data: unknown,
+    description?: string
+  ): Promise<UpdateAttachmentResponse> {
+    return await this.http.put<UpdateAttachmentResponse>(
+      `${publicApiPath}/conversations/${conversationId}/attachments/${attachmentId}`,
+      {
+        body: JSON.stringify({ data, ...(description !== undefined ? { description } : {}) }),
       }
     );
   }

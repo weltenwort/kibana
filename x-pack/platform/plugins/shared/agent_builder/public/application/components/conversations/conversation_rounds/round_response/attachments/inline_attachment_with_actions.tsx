@@ -17,6 +17,7 @@ import type { AttachmentsService } from '../../../../../../services';
 import { AB_PANEL_RADIUS } from '../../../../../../common.styles';
 import { useConversationContext } from '../../../../../context/conversation/conversation_context';
 import { useAgentId } from '../../../../../hooks/use_conversation';
+import { useSubmitMessage } from '../../../../../hooks/use_submit_message';
 import { useAgentBuilderServices } from '../../../../../hooks/use_agent_builder_service';
 import { AttachmentHeader } from './attachment_header';
 import { AttachmentRenderErrorBoundary } from './attachment_render_error_boundary';
@@ -69,6 +70,7 @@ const InlineAttachmentWithActionsComponent: React.FC<InlineAttachmentWithActions
   } = useCanvasContext();
   const { conversationActions } = useConversationContext();
   const agentId = useAgentId();
+  const submitMessage = useSubmitMessage();
   const { openSidebarConversation: openSidebarConversationInternal } = useAgentBuilderServices();
 
   const openCanvas = useCallback(() => {
@@ -82,6 +84,15 @@ const InlineAttachmentWithActionsComponent: React.FC<InlineAttachmentWithActions
       return result;
     },
     [attachmentsService, conversationId, attachment.id, conversationActions]
+  );
+
+  // Unlike updateOrigin, this deliberately does not invalidate: a refetch advances the pinned
+  // version, which changes the render key and rebuilds the renderer subtree on every write.
+  const updateContent = useCallback(
+    async (data: unknown, description?: string) => {
+      await attachmentsService.updateContent(conversationId, attachment.id, data, description);
+    },
+    [attachmentsService, conversationId, attachment.id]
   );
 
   const openSidebarConversation = useCallback(() => {
@@ -112,6 +123,8 @@ const InlineAttachmentWithActionsComponent: React.FC<InlineAttachmentWithActions
         isSidebar,
         agentId,
         updateOrigin,
+        updateContent,
+        submitMessage,
         openCanvas,
         openSidebarConversation: isSidebar ? undefined : openSidebarConversation,
         isCanvas: false,
@@ -127,6 +140,8 @@ const InlineAttachmentWithActionsComponent: React.FC<InlineAttachmentWithActions
       isSidebar,
       agentId,
       updateOrigin,
+      updateContent,
+      submitMessage,
       openCanvas,
       setPreviewedAttachmentKey,
       attachmentPreviewKey,
@@ -202,6 +217,8 @@ const InlineAttachmentWithActionsComponent: React.FC<InlineAttachmentWithActions
                 },
                 {
                   registerActionButtons,
+                  updateContent,
+                  submitMessage,
                 }
               )
             }

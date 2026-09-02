@@ -21,6 +21,7 @@ import { createSloAttachmentType } from './slo';
 import { createHostAttachmentType } from './host';
 import { createTransactionAttachmentType } from './transaction';
 import { createMonitorAttachmentType } from './monitor';
+import { createLogExplorationAttachmentType } from './log_exploration';
 
 export async function registerAttachments({
   core,
@@ -43,6 +44,7 @@ export async function registerAttachments({
     createHostAttachmentType({ logger, dataRegistry }),
     createTransactionAttachmentType({ logger, dataRegistry }),
     createMonitorAttachmentType({ logger, dataRegistry }),
+    createLogExplorationAttachmentType(),
   ];
 
   for (const attachment of attachmentTypes) {

@@ -1,0 +1,129 @@
+# Log exploration attachment (PoC)
+
+Renders the `observability.log_exploration` attachment as an interactive view the user filters
+directly. Branches on `data.type`: `pattern-table` shows patterns with per-row sparklines, `histogram`
+shows current log volume overlaid on a baseline epoch. One attachment carries both views plus the
+loop state (muted patterns, time range, baseline epoch) so state survives switching between them.
+
+**This is a proof of concept.** It exists to answer whether Agent Chat can host a human-steered log
+exploration loop, not to ship. The caveats below are deliberate.
+
+## Local edits to other teams' code
+
+These are **not** PRs and must be reverted or upstreamed properly before any of this ships.
+
+| File                                                                                | Change                                                                                                              |
+| ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `packages/shared/agent-builder/agent-builder-server/allow_lists.ts`                 | Added two tool ids, one skill id, one attachment type id. `register*` throws without them                           |
+| `plugins/shared/agent_builder/server/routes/attachments.ts`                         | Content PUT now passes `ATTACHMENT_REF_ACTOR.user` and calls `addAttachmentsToLastRound` instead of `client.update` |
+| `packages/shared/agent-builder/agent-builder-browser/attachments/contract.ts`       | Added optional `updateContent` and `submitMessage` to `GetActionButtonsParams` and `InlineRenderCallbacks`          |
+| `plugins/shared/agent_builder/public/services/attachments/attachements_service.tsx` | Added `updateContent`                                                                                               |
+| `plugins/shared/agent_builder/public/.../inline_attachment_with_actions.tsx`        | Wired both capabilities into the two renderer call sites                                                            |
+
+## Why the PUT route had to change
+
+Rounds pin attachments by ref. `resolveAttachmentVersion` in `render_attachment_plugin.tsx` reads
+`round.input.attachment_refs` **before** falling back to `versions.at(-1)`. The stock PUT route writes
+a new version but leaves the ref pinned at the old one, so any refetch re-renders the stale version
+even though the new one exists. Persisting the ref is what makes a mutation survive a refetch.
+
+**Known defect, not fixed here:** refs accumulate, one entry appended per button click, unbounded.
+Needs collapsing in the update route or in the merge logic. Agent Builder's call.
+
+**Known defect, not fixed here:** `actor: user` places version chips beside the user's prompt under a
+hardcoded "Added" label, which is the wrong placement and label for button-driven edits.
+
+## Why content writes do not invalidate the conversation
+
+`updateContent` deliberately omits `conversationActions.invalidateConversation()`, unlike the
+`updateOrigin` wrapper directly above it in the same file.
+
+The renderer subtree is keyed `` `${attachment.id}:${versionData.version}` `` on
+`AttachmentRenderErrorBoundary`, and `computeCumulativeRefs` resolves that version to the **highest
+ref seen**, not the one the round was created with. Because the PUT route persists a ref on every
+write, invalidating refetches, advances the pinned version, changes the key and rebuilds the subtree
+after every click.
+
+Note this coupling is structural, not incidental: the same version selects the data _and_ forms the
+key. A ref that does not advance keeps the key stable but renders stale content; a ref that advances
+refreshes the content but always moves the key. There is no configuration that gives a plain
+re-render with fresh data.
+
+Measured on a local instance, with invalidation temporarily switched on:
+
+|                                  | Without invalidation | With invalidation                             |
+| -------------------------------- | -------------------- | --------------------------------------------- |
+| Row disappears                   | ~50 ms               | ~50 ms (local state, unchanged)               |
+| Subtree rebuilt                  | never                | ~712 ms after every click                     |
+| Network per click                | one ~16 KB PUT       | ~16 KB PUT + **two** ~40 KB conversation GETs |
+| Clicking faster than the rebuild | correct              | **rows revert on screen**                     |
+
+**The rebuild reverts recent clicks.** Sampling row count every 20 ms across two mutes 200 ms apart:
+
+```
+t=38    5 rows   mute #1 applied locally
+t=257   4 rows   mute #2 applied locally
+t=405   5 rows   <- muted row REAPPEARS
+t=1393  4 rows   settles once mute #2's write lands
+```
+
+The rebuild after mute #1's write re-seeds from a server version that predates mute #2, so the row is
+visibly back for ~1s. A three-click sequence then lands the third click on a pattern that had already
+been muted, because the reverted row returned to position 0 under the pointer:
+
+```
+t=0    7 rows -> clicked "GET /api/v1/orders"
+t=150  6 rows -> clicked "Cache miss for key session"
+t=700  6 rows -> clicked "Cache miss for key session"   same row again
+       3 clicks produced 2 mutes
+```
+
+Nothing was lost only because `MUTE_PATTERN` is idempotent. Aiming at a different pattern in that
+window would have muted the wrong one. For a view whose primary interaction is rapidly dismissing
+noise, rows moving under the pointer is the failure that matters, not the flicker.
+
+Costs beyond that: a visible teardown and rebuild of the panel ~700 ms after each click, and a full
+conversation refetch per click that grows with conversation length — ~97 KB per mute here against
+~16 KB. Anything not derived from attachment data, such as an open date-picker popover, is discarded
+with the rebuild. Focus is lost in both modes, since removing the row destroys the focused button.
+
+Consequences of skipping it:
+
+- Local reducer state is the display source between refetches. `props.attachment.data` stays frozen,
+  which is why every mutation derives from local state (see `use_log_exploration_state.ts`).
+- A failed PUT is corrected by `PERSIST_FAILED` reverting to the last acknowledged snapshot. Nothing
+  else will correct it, so that path is load-bearing rather than defensive.
+- An agent write to the attachment is not visible until the next natural refetch. Since agent writes
+  only happen during a round, and round completion refetches anyway, this is near-theoretical.
+
+## Why agent-turn handlers await `flushPendingWrites()`
+
+`render_attachment_plugin.tsx` renders `<AttachmentLoadingSkeleton />` whenever `isStreaming`, so every
+agent turn tears down and rebuilds this subtree from server state. Clicking Mute and then immediately
+Investigate or Summarize would otherwise race an in-flight PUT against the turn's refetch and silently
+lose the mute — precisely in the interactions meant to prove muted state reaches the model.
+
+Writes are also serialised behind a single in-flight promise, since concurrent PUTs each carry the full
+accumulated payload and last-write-wins is only correct if responses land in order.
+
+## Accepted rough edges
+
+- **React DOM-nesting warnings.** Inline renders live inside a markdown `<p>`, and `EuiDataGrid`,
+  `EuiSuperDatePicker` and elastic-charts are all block-level. The console will complain. Moving the
+  view to `renderCanvasContent` would fix it, at the cost of taking the loop out of the transcript.
+- **No canvas.** `renderCanvasContent` is not implemented, so `openCanvas` is never offered and
+  `canvas_flyout.tsx` was left untouched. A canvas variant would need the contract additions threaded
+  there too.
+- **Changing the time range rewrites state but does not re-query.** Fresh data needs a tool call, so
+  the agent re-runs the tool on the next turn.
+- **`maxContentLength` on `AttachmentTypeDefinition` is declared but never enforced** by the framework.
+  All payload bounds live in the zod schema in `common/log_exploration.ts` instead.
+- **Silent disappearance.** `render_attachment_plugin.tsx` returns `null` with no diagnostic when the
+  resolved version is missing from `versions[]`. If the attachment vanishes rather than erroring, check
+  the round's `attachment_refs` against the stored versions first.
+
+## Out of scope
+
+Production quality, visual polish, MCP App parity, persistence beyond the conversation, permissions,
+and the remaining capabilities in the log exploration spec. Muting is view-only; it is not pushed down
+into the ES|QL query.

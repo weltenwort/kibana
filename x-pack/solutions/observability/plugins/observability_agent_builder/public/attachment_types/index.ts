@@ -8,6 +8,8 @@
 import { i18n } from '@kbn/i18n';
 import type { AttachmentServiceStartContract } from '@kbn/agent-builder-browser';
 import type { Attachment } from '@kbn/agent-builder-common/attachments';
+import type { ChartsPluginStart } from '@kbn/charts-plugin/public';
+import { registerLogExplorationAttachmentType } from './log_exploration';
 import {
   OBSERVABILITY_AI_INSIGHT_ATTACHMENT_TYPE_ID,
   OBSERVABILITY_ALERT_ATTACHMENT_TYPE_ID,
@@ -107,8 +109,10 @@ const createAttachmentTypeConfig = (defaultLabel: string, icon: string) => ({
 
 export const registerAttachmentUiDefinitions = ({
   attachments,
+  charts,
 }: {
   attachments: AttachmentServiceStartContract;
+  charts: ChartsPluginStart;
 }) => {
   ATTACHMENT_TYPE_CONFIGS.forEach(({ type, label, icon }) => {
     attachments.addAttachmentType<UnknownAttachmentWithLabel>(
@@ -116,4 +120,6 @@ export const registerAttachmentUiDefinitions = ({
       createAttachmentTypeConfig(label, icon)
     );
   });
+
+  registerLogExplorationAttachmentType({ attachments, charts });
 };

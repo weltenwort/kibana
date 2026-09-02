@@ -419,7 +419,11 @@ export function registerAttachmentRoutes({
 
         let updated;
         try {
-          updated = await stateManager.update(attachmentId, { data, description });
+          updated = await stateManager.update(
+            attachmentId,
+            { data, description },
+            ATTACHMENT_REF_ACTOR.user
+          );
         } catch (e) {
           return response.badRequest({
             body: { message: e.message },
@@ -433,11 +437,23 @@ export function registerAttachmentRoutes({
           });
         }
 
-        // Save the updated conversation
-        await client.update({
-          id: conversationId,
-          attachments: stateManager.getAll(),
-        });
+        if (conversation.rounds.length > 0) {
+          // Rounds pin attachments by ref, so the new version must be pinned too or the UI keeps
+          // rendering the version the round was created with.
+          await client.addAttachmentsToLastRound({
+            id: conversationId,
+            refs: stateManager.getAccessedRefs(),
+            attachments: {
+              snapshot: conversation.attachments ?? [],
+              produced: stateManager.getAll(),
+            },
+          });
+        } else {
+          await client.update({
+            id: conversationId,
+            attachments: stateManager.getAll(),
+          });
+        }
 
         return response.ok<UpdateAttachmentResponse>({
           body: {
