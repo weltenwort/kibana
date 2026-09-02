@@ -14,6 +14,7 @@ import { ActionButtonType, type ActionButton } from '@kbn/agent-builder-browser/
 import type { LogExplorationData } from '../../../common/log_exploration';
 import { logExplorationDataSchema } from '../../../common/log_exploration';
 import { useLogExplorationState } from './use_log_exploration_state';
+import type { FetchLogExplorationView } from './fetch_log_exploration_view';
 import { ExplorationControls } from './exploration_controls';
 import { PatternTable } from './pattern_table';
 import { BaselineHistogram } from './baseline_histogram';
@@ -21,6 +22,7 @@ import { BaselineHistogram } from './baseline_histogram';
 export interface LogExplorationAttachmentProps {
   attachment: Attachment<string, unknown>;
   charts: ChartsPluginStart;
+  fetchView: FetchLogExplorationView;
   updateContent?: (data: unknown, description?: string) => Promise<void>;
   submitMessage?: (message: string) => void;
   registerActionButtons?: (buttons: ActionButton[]) => void;
@@ -29,6 +31,7 @@ export interface LogExplorationAttachmentProps {
 export const LogExplorationAttachment: React.FC<LogExplorationAttachmentProps> = ({
   attachment,
   charts,
+  fetchView,
   updateContent,
   submitMessage,
   registerActionButtons,
@@ -47,9 +50,11 @@ export const LogExplorationAttachment: React.FC<LogExplorationAttachmentProps> =
 
   const onPersistError = useCallback((error: Error) => setPersistError(error.message), []);
 
-  const { data, dispatch, flushPendingWrites } = useLogExplorationState({
+  const { data, dispatch, flushPendingWrites, isFetching, fetchError } = useLogExplorationState({
     initialData: (parsed.success ? parsed.data : EMPTY_DATA) as LogExplorationData,
     updateContent,
+    // A superseded render must not write, and a refetch always ends in a write.
+    fetchView: isReadOnly ? undefined : fetchView,
     onPersistError,
   });
 
@@ -104,8 +109,27 @@ export const LogExplorationAttachment: React.FC<LogExplorationAttachmentProps> =
   return (
     <EuiFlexGroup direction="column" gutterSize="s" css={{ padding: 12 }}>
       <EuiFlexItem grow={false}>
-        <ExplorationControls data={data} dispatch={dispatch} isReadOnly={isReadOnly} />
+        <ExplorationControls
+          data={data}
+          dispatch={dispatch}
+          isReadOnly={isReadOnly}
+          isFetching={isFetching}
+        />
       </EuiFlexItem>
+      {fetchError && (
+        <EuiFlexItem grow={false}>
+          <EuiCallOut
+            announceOnMount
+            color="warning"
+            size="s"
+            title={i18n.translate('xpack.observabilityAgentBuilder.logExploration.fetchFailed', {
+              defaultMessage: 'Could not refresh this view. The previous window has been restored.',
+            })}
+          >
+            {fetchError}
+          </EuiCallOut>
+        </EuiFlexItem>
+      )}
       {persistError && (
         <EuiFlexItem grow={false}>
           <EuiCallOut
@@ -118,7 +142,7 @@ export const LogExplorationAttachment: React.FC<LogExplorationAttachmentProps> =
           />
         </EuiFlexItem>
       )}
-      <EuiFlexItem grow={false}>
+      <EuiFlexItem grow={false} aria-busy={isFetching} css={{ opacity: isFetching ? 0.5 : 1 }}>
         {data.type === 'pattern-table' ? (
           <PatternTable
             data={data}

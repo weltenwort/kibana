@@ -3,7 +3,13 @@
   "compilerOptions": {
     "outDir": "target/types"
   },
-  "include": ["common/**/*", "server/**/*", "../../../../../typings/**/*", "public/**/*", "scripts/**/*"],
+  "include": [
+    "common/**/*",
+    "server/**/*",
+    "../../../../../typings/**/*",
+    "public/**/*",
+    "scripts/**/*"
+  ],
   "kbn_references": [
     "@kbn/core",
     "@kbn/agent-builder-common",
@@ -16,6 +22,7 @@
     "@kbn/agent-builder-server",
     "@kbn/security-plugin",
     "@kbn/es-query",
+    "@kbn/esql-utils",
     "@kbn/core-elasticsearch-server",
     "@kbn/es-types",
     "@kbn/datemath",
@@ -58,5 +65,7 @@
     "@kbn/sse-utils",
     "@kbn/cloud-plugin",
   ],
-  "exclude": ["target/**/*"]
+  "exclude": [
+    "target/**/*"
+  ]
 }

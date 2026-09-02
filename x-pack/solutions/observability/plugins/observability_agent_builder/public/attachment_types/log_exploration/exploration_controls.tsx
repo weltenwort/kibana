@@ -8,32 +8,70 @@
 import React from 'react';
 import { EuiBadge, EuiFlexGroup, EuiFlexItem, EuiSuperDatePicker, EuiText } from '@elastic/eui';
 import { i18n } from '@kbn/i18n';
-import type { LogExplorationData } from '../../../common/log_exploration';
+import dateMath from '@kbn/datemath';
+import type { LogExplorationData, LogExplorationTimeRange } from '../../../common/log_exploration';
 import type { LogExplorationAction } from './use_log_exploration_state';
 
 interface ExplorationControlsProps {
   data: LogExplorationData;
   dispatch: (action: LogExplorationAction) => void;
   isReadOnly: boolean;
+  isFetching: boolean;
 }
 
 const truncate = (pattern: string) => (pattern.length > 40 ? `${pattern.slice(0, 40)}…` : pattern);
+
+/**
+ * Keeps the baseline the same distance behind the window and the same length, so moving the range
+ * does not silently turn a "24 hours earlier" comparison into an arbitrary one.
+ */
+const shiftBaselineEpoch = (
+  data: LogExplorationData,
+  next: LogExplorationTimeRange
+): LogExplorationTimeRange | undefined => {
+  if (!data.baselineEpoch) {
+    return undefined;
+  }
+  const previousStartMs = dateMath.parse(data.timeRange.start)?.valueOf();
+  const baselineStartMs = dateMath.parse(data.baselineEpoch.start)?.valueOf();
+  const nextStartMs = dateMath.parse(next.start)?.valueOf();
+  const nextEndMs = dateMath.parse(next.end, { roundUp: true })?.valueOf();
+  if (
+    previousStartMs === undefined ||
+    baselineStartMs === undefined ||
+    nextStartMs === undefined ||
+    nextEndMs === undefined
+  ) {
+    return undefined;
+  }
+  const offsetMs = previousStartMs - baselineStartMs;
+  return {
+    start: new Date(nextStartMs - offsetMs).toISOString(),
+    end: new Date(nextEndMs - offsetMs).toISOString(),
+  };
+};
 
 export const ExplorationControls: React.FC<ExplorationControlsProps> = ({
   data,
   dispatch,
   isReadOnly,
+  isFetching,
 }) => (
   <EuiFlexGroup direction="column" gutterSize="s">
     <EuiFlexItem grow={false}>
       <EuiSuperDatePicker
         compressed
         isDisabled={isReadOnly}
+        isLoading={isFetching}
         showUpdateButton={false}
         start={data.timeRange.start}
         end={data.timeRange.end}
         onTimeChange={({ start, end }) =>
-          dispatch({ type: 'SET_TIME_RANGE', timeRange: { start, end } })
+          dispatch({
+            type: 'SET_TIME_RANGE',
+            timeRange: { start, end },
+            baselineEpoch: shiftBaselineEpoch(data, { start, end }),
+          })
         }
         width="auto"
       />

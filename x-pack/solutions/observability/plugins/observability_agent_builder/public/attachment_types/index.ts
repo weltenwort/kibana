@@ -6,6 +6,7 @@
  */
 
 import { i18n } from '@kbn/i18n';
+import type { HttpStart } from '@kbn/core/public';
 import type { AttachmentServiceStartContract } from '@kbn/agent-builder-browser';
 import type { Attachment } from '@kbn/agent-builder-common/attachments';
 import type { ChartsPluginStart } from '@kbn/charts-plugin/public';
@@ -110,9 +111,11 @@ const createAttachmentTypeConfig = (defaultLabel: string, icon: string) => ({
 export const registerAttachmentUiDefinitions = ({
   attachments,
   charts,
+  http,
 }: {
   attachments: AttachmentServiceStartContract;
   charts: ChartsPluginStart;
+  http: HttpStart;
 }) => {
   ATTACHMENT_TYPE_CONFIGS.forEach(({ type, label, icon }) => {
     attachments.addAttachmentType<UnknownAttachmentWithLabel>(
@@ -121,5 +124,5 @@ export const registerAttachmentUiDefinitions = ({
     );
   });
 
-  registerLogExplorationAttachmentType({ attachments, charts });
+  registerLogExplorationAttachmentType({ attachments, charts, http });
 };

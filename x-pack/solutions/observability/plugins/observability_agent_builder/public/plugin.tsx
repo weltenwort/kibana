@@ -57,6 +57,7 @@ export class ObservabilityAgentBuilderPlugin
     registerAttachmentUiDefinitions({
       attachments: plugins.agentBuilder.attachments,
       charts: plugins.charts,
+      http: core.http,
     });
 
     return {

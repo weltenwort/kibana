@@ -7,6 +7,7 @@
 
 import type { AttachmentServiceStartContract } from '@kbn/agent-builder-browser';
 import type { ChartsPluginStart } from '@kbn/charts-plugin/public';
+import type { HttpStart } from '@kbn/core/public';
 import {
   OBSERVABILITY_AI_INSIGHT_ATTACHMENT_TYPE_ID,
   OBSERVABILITY_ALERT_ATTACHMENT_TYPE_ID,
@@ -26,6 +27,7 @@ const mockAttachments: AttachmentServiceStartContract = {
 } as unknown as AttachmentServiceStartContract;
 
 const mockCharts = {} as unknown as ChartsPluginStart;
+const mockHttp = { post: jest.fn() } as unknown as HttpStart;
 
 describe('registerAttachmentUiDefinitions', () => {
   beforeEach(() => {
@@ -36,6 +38,7 @@ describe('registerAttachmentUiDefinitions', () => {
     registerAttachmentUiDefinitions({
       attachments: mockAttachments,
       charts: mockCharts,
+      http: mockHttp,
     });
     expect(mockAddAttachmentType).toHaveBeenCalledTimes(10);
   });
@@ -44,6 +47,7 @@ describe('registerAttachmentUiDefinitions', () => {
     registerAttachmentUiDefinitions({
       attachments: mockAttachments,
       charts: mockCharts,
+      http: mockHttp,
     });
 
     const aiInsightCall = mockAddAttachmentType.mock.calls.find(
@@ -60,6 +64,7 @@ describe('registerAttachmentUiDefinitions', () => {
     registerAttachmentUiDefinitions({
       attachments: mockAttachments,
       charts: mockCharts,
+      http: mockHttp,
     });
 
     const alertCall = mockAddAttachmentType.mock.calls.find(
@@ -76,6 +81,7 @@ describe('registerAttachmentUiDefinitions', () => {
     registerAttachmentUiDefinitions({
       attachments: mockAttachments,
       charts: mockCharts,
+      http: mockHttp,
     });
 
     const errorCall = mockAddAttachmentType.mock.calls.find(
@@ -92,6 +98,7 @@ describe('registerAttachmentUiDefinitions', () => {
     registerAttachmentUiDefinitions({
       attachments: mockAttachments,
       charts: mockCharts,
+      http: mockHttp,
     });
 
     const logCall = mockAddAttachmentType.mock.calls.find(
@@ -108,6 +115,7 @@ describe('registerAttachmentUiDefinitions', () => {
     registerAttachmentUiDefinitions({
       attachments: mockAttachments,
       charts: mockCharts,
+      http: mockHttp,
     });
 
     const alertCall = mockAddAttachmentType.mock.calls.find(
@@ -127,6 +135,7 @@ describe('registerAttachmentUiDefinitions', () => {
     registerAttachmentUiDefinitions({
       attachments: mockAttachments,
       charts: mockCharts,
+      http: mockHttp,
     });
 
     const alertCall = mockAddAttachmentType.mock.calls.find(
@@ -146,6 +155,7 @@ describe('registerAttachmentUiDefinitions', () => {
     registerAttachmentUiDefinitions({
       attachments: mockAttachments,
       charts: mockCharts,
+      http: mockHttp,
     });
 
     const alertCall = mockAddAttachmentType.mock.calls.find(
@@ -165,6 +175,7 @@ describe('registerAttachmentUiDefinitions', () => {
     registerAttachmentUiDefinitions({
       attachments: mockAttachments,
       charts: mockCharts,
+      http: mockHttp,
     });
 
     const sloCall = mockAddAttachmentType.mock.calls.find(
@@ -181,6 +192,7 @@ describe('registerAttachmentUiDefinitions', () => {
     registerAttachmentUiDefinitions({
       attachments: mockAttachments,
       charts: mockCharts,
+      http: mockHttp,
     });
 
     const serviceCall = mockAddAttachmentType.mock.calls.find(
@@ -197,6 +209,7 @@ describe('registerAttachmentUiDefinitions', () => {
     registerAttachmentUiDefinitions({
       attachments: mockAttachments,
       charts: mockCharts,
+      http: mockHttp,
     });
 
     const hostCall = mockAddAttachmentType.mock.calls.find(
@@ -213,6 +226,7 @@ describe('registerAttachmentUiDefinitions', () => {
     registerAttachmentUiDefinitions({
       attachments: mockAttachments,
       charts: mockCharts,
+      http: mockHttp,
     });
 
     const transactionCall = mockAddAttachmentType.mock.calls.find(
@@ -229,6 +243,7 @@ describe('registerAttachmentUiDefinitions', () => {
     registerAttachmentUiDefinitions({
       attachments: mockAttachments,
       charts: mockCharts,
+      http: mockHttp,
     });
 
     const monitorCall = mockAddAttachmentType.mock.calls.find(

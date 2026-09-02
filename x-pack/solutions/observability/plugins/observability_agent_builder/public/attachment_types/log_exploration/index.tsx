@@ -7,21 +7,27 @@
 
 import React from 'react';
 import { i18n } from '@kbn/i18n';
+import type { HttpStart } from '@kbn/core/public';
 import type { AttachmentServiceStartContract } from '@kbn/agent-builder-browser';
 import type { ChartsPluginStart } from '@kbn/charts-plugin/public';
 import type { Attachment } from '@kbn/agent-builder-common/attachments';
 import { OBSERVABILITY_LOG_EXPLORATION_ATTACHMENT_TYPE_ID } from '../../../common/constants';
 import { LogExplorationAttachment } from './log_exploration_attachment';
+import { createFetchLogExplorationView } from './fetch_log_exploration_view';
 
 type LogExplorationUnknownAttachment = Attachment<string, unknown>;
 
 export const registerLogExplorationAttachmentType = ({
   attachments,
   charts,
+  http,
 }: {
   attachments: AttachmentServiceStartContract;
   charts: ChartsPluginStart;
+  http: HttpStart;
 }) => {
+  const fetchView = createFetchLogExplorationView(http);
+
   attachments.addAttachmentType<LogExplorationUnknownAttachment>(
     OBSERVABILITY_LOG_EXPLORATION_ATTACHMENT_TYPE_ID,
     {
@@ -53,6 +59,7 @@ export const registerLogExplorationAttachmentType = ({
         <LogExplorationAttachment
           attachment={props.attachment}
           charts={charts}
+          fetchView={fetchView}
           updateContent={callbacks?.updateContent}
           submitMessage={callbacks?.submitMessage}
           registerActionButtons={callbacks?.registerActionButtons}

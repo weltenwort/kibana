@@ -104,7 +104,37 @@ Investigate or Summarize would otherwise race an in-flight PUT against the turn'
 lose the mute — precisely in the interactions meant to prove muted state reaches the model.
 
 Writes are also serialised behind a single in-flight promise, since concurrent PUTs each carry the full
-accumulated payload and last-write-wins is only correct if responses land in order.
+accumulated payload and last-write-wins is only correct if responses land in order. `flushPendingWrites`
+awaits the in-flight refetch first, because a refetch persists only once its data lands.
+
+## Refetching without an agent turn
+
+Moving the window has to change the data, not just the label, or the view misrepresents itself. Two
+internal routes — `POST /internal/observability_agent_builder/log_exploration/{patterns,volume_comparison}`
+— re-run the same query handlers the tools use, so there is one query implementation rather than two.
+They are stateless: the renderer already holds every parameter, and writes the new window and its
+data back in a single `updateContent` call once the data lands. Persisting the window first would
+leave the attachment describing a range whose table still belongs to the previous one.
+
+Which interactions refetch, and why:
+
+| Interaction    | Refetches | Reason                                                                        |
+| -------------- | --------- | ----------------------------------------------------------------------------- |
+| Time range     | yes       | Every number in the view belongs to the window                                |
+| Baseline epoch | yes       | The baseline series is queried per epoch                                      |
+| Unmute         | yes       | The query excluded the pattern, so its retained count is from an older window |
+| Mute           | no        | Hides a row that was already queried for this window; stays instant (~50 ms)  |
+
+Mute is the deliberate exception. The query is `LIMIT 25`, so muting could let a new pattern into the
+top-N, but paying an ES|QL round trip (~250 ms) per mute would weaken the "instant" claim this PoC
+exists to test. Instead the query pushes muted patterns down as a `must_not` DSL filter, so the top-N
+backfills on the next refetch, and the client keeps the previously seen entry for every muted pattern
+so unmute has something to show while its refetch is in flight.
+
+Ordering and failure: each refetch carries a sequence number and aborts its predecessor, so the latest
+interaction wins regardless of response order. A failed refetch rolls back the **window only** —
+anything the user did while it was in flight stands — and surfaces a callout, distinct from
+`PERSIST_FAILED` so a failed fetch cannot revert a successful write.
 
 ## Accepted rough edges
 
@@ -114,8 +144,8 @@ accumulated payload and last-write-wins is only correct if responses land in ord
 - **No canvas.** `renderCanvasContent` is not implemented, so `openCanvas` is never offered and
   `canvas_flyout.tsx` was left untouched. A canvas variant would need the contract additions threaded
   there too.
-- **Changing the time range rewrites state but does not re-query.** Fresh data needs a tool call, so
-  the agent re-runs the tool on the next turn.
+- **A retained muted pattern shows a stale count** until its refetch lands, because it is kept from
+  the payload rather than re-queried. Unmuting refetches immediately, so the window is short.
 - **`maxContentLength` on `AttachmentTypeDefinition` is declared but never enforced** by the framework.
   All payload bounds live in the zod schema in `common/log_exploration.ts` instead.
 - **Silent disappearance.** `render_attachment_plugin.tsx` returns `null` with no diagnostic when the

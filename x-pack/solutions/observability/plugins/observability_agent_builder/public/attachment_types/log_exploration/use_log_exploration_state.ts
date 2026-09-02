@@ -5,8 +5,13 @@
  * 2.0.
  */
 
-import { useCallback, useEffect, useReducer, useRef } from 'react';
-import type { LogExplorationData, LogExplorationTimeRange } from '../../../common/log_exploration';
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
+import type {
+  LogExplorationData,
+  LogExplorationFetchResult,
+  LogExplorationTimeRange,
+} from '../../../common/log_exploration';
+import { mergeFetchedPatterns } from '../../../common/log_exploration';
 
 /**
  * Surface-neutral action vocabulary: every user intent the view supports, independent of how it is
@@ -15,8 +20,15 @@ import type { LogExplorationData, LogExplorationTimeRange } from '../../../commo
 export type LogExplorationAction =
   | { type: 'MUTE_PATTERN'; pattern: string }
   | { type: 'UNMUTE_PATTERN'; pattern: string }
-  | { type: 'SET_TIME_RANGE'; timeRange: LogExplorationTimeRange }
+  | {
+      type: 'SET_TIME_RANGE';
+      timeRange: LogExplorationTimeRange;
+      /** Callers holding a baseline offset shift it with the window so the two stay comparable. */
+      baselineEpoch?: LogExplorationTimeRange;
+    }
   | { type: 'SET_BASELINE_EPOCH'; baselineEpoch: LogExplorationTimeRange }
+  | { type: 'FETCH_SUCCEEDED'; result: LogExplorationFetchResult }
+  | { type: 'FETCH_FAILED'; snapshot: LogExplorationData }
   | { type: 'PERSIST_FAILED'; snapshot: LogExplorationData };
 
 export const logExplorationReducer = (
@@ -34,19 +46,62 @@ export const logExplorationReducer = (
         mutedPatterns: state.mutedPatterns.filter((pattern) => pattern !== action.pattern),
       };
     case 'SET_TIME_RANGE':
-      return { ...state, timeRange: action.timeRange };
+      return {
+        ...state,
+        timeRange: action.timeRange,
+        ...(action.baselineEpoch ? { baselineEpoch: action.baselineEpoch } : {}),
+      };
     case 'SET_BASELINE_EPOCH':
       return { ...state, baselineEpoch: action.baselineEpoch };
+    case 'FETCH_SUCCEEDED':
+      return {
+        ...state,
+        ...(action.result.patterns
+          ? {
+              patterns: mergeFetchedPatterns(
+                state.patterns,
+                action.result.patterns,
+                state.mutedPatterns
+              ),
+            }
+          : {}),
+        ...(action.result.histogram ? { histogram: action.result.histogram } : {}),
+        generatedAt: action.result.generatedAt,
+      };
+    // Only the window rolls back: anything the user did while the fetch was in flight stands.
+    case 'FETCH_FAILED':
+      return {
+        ...state,
+        timeRange: action.snapshot.timeRange,
+        baselineEpoch: action.snapshot.baselineEpoch,
+      };
     case 'PERSIST_FAILED':
       return action.snapshot;
   }
 };
 
-const isPersistable = (action: LogExplorationAction) => action.type !== 'PERSIST_FAILED';
+/**
+ * Muting only hides a row that was already queried for this window, so it stays instant. Everything
+ * else needs data the view does not have: a new window, or a pattern the last query excluded.
+ */
+const requiresFetch = (action: LogExplorationAction) =>
+  action.type === 'SET_TIME_RANGE' ||
+  action.type === 'SET_BASELINE_EPOCH' ||
+  action.type === 'UNMUTE_PATTERN';
+
+const isPersistable = (action: LogExplorationAction) => action.type === 'MUTE_PATTERN';
+
+const isAbortError = (error: unknown) => error instanceof Error && error.name === 'AbortError';
+
+const toError = (error: unknown) => (error instanceof Error ? error : new Error(String(error)));
 
 interface UseLogExplorationStateArgs {
   initialData: LogExplorationData;
   updateContent?: (data: unknown) => Promise<void>;
+  fetchView?: (args: {
+    data: LogExplorationData;
+    signal: AbortSignal;
+  }) => Promise<LogExplorationFetchResult>;
   onPersistError?: (error: Error) => void;
 }
 
@@ -58,9 +113,12 @@ interface UseLogExplorationStateArgs {
 export const useLogExplorationState = ({
   initialData,
   updateContent,
+  fetchView,
   onPersistError,
 }: UseLogExplorationStateArgs) => {
   const [data, rawDispatch] = useReducer(logExplorationReducer, initialData);
+  const [isFetching, setIsFetching] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const dataRef = useRef(data);
   dataRef.current = data;
@@ -68,12 +126,17 @@ export const useLogExplorationState = ({
   // Last state the server acknowledged, so a failed write has something to revert to.
   const acknowledgedRef = useRef(initialData);
   const inFlightRef = useRef<Promise<void>>(Promise.resolve());
+  const fetchInFlightRef = useRef<Promise<void>>(Promise.resolve());
   const isMountedRef = useRef(true);
+  // Latest request wins: an older fetch resolving late must not overwrite a newer window.
+  const requestSeqRef = useRef(0);
+  const abortRef = useRef<AbortController>();
 
   useEffect(() => {
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
+      abortRef.current?.abort();
     };
   }, []);
 
@@ -91,34 +154,85 @@ export const useLogExplorationState = ({
         })
         .catch((error) => {
           if (isMountedRef.current) {
+            dataRef.current = previous;
             rawDispatch({ type: 'PERSIST_FAILED', snapshot: previous });
           }
-          onPersistError?.(error instanceof Error ? error : new Error(String(error)));
+          onPersistError?.(toError(error));
         });
     },
     [updateContent, onPersistError]
   );
 
+  /**
+   * Refetches the view for a changed window, then writes the window and its data back in one
+   * update. Persisting first would leave the attachment describing a range whose table still
+   * belongs to the previous one.
+   */
+  const runFetch = useCallback(
+    (next: LogExplorationData, snapshot: LogExplorationData) => {
+      if (!fetchView) {
+        return;
+      }
+      const seq = ++requestSeqRef.current;
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+      setIsFetching(true);
+      setFetchError(null);
+
+      fetchInFlightRef.current = fetchView({ data: next, signal: controller.signal }).then(
+        (result) => {
+          if (seq !== requestSeqRef.current || !isMountedRef.current) {
+            return;
+          }
+          const action: LogExplorationAction = { type: 'FETCH_SUCCEEDED', result };
+          const merged = logExplorationReducer(dataRef.current, action);
+          dataRef.current = merged;
+          rawDispatch(action);
+          setIsFetching(false);
+          persist(merged);
+        },
+        (error) => {
+          if (isAbortError(error) || seq !== requestSeqRef.current || !isMountedRef.current) {
+            return;
+          }
+          const action: LogExplorationAction = { type: 'FETCH_FAILED', snapshot };
+          dataRef.current = logExplorationReducer(dataRef.current, action);
+          rawDispatch(action);
+          setIsFetching(false);
+          setFetchError(toError(error).message);
+        }
+      );
+    },
+    [fetchView, persist]
+  );
+
   const dispatch = useCallback(
     (action: LogExplorationAction) => {
-      const next = logExplorationReducer(dataRef.current, action);
-      if (next === dataRef.current) {
+      const current = dataRef.current;
+      const next = logExplorationReducer(current, action);
+      if (next === current) {
         return;
       }
       dataRef.current = next;
       rawDispatch(action);
-      if (isPersistable(action)) {
+      if (requiresFetch(action)) {
+        runFetch(next, current);
+      } else if (isPersistable(action)) {
         persist(next);
       }
     },
-    [persist]
+    [persist, runFetch]
   );
 
   /**
-   * Streaming remounts this subtree from server data, so an agent turn started while a write is in
-   * flight would read stale state. Await this before submitting a message.
+   * Streaming remounts this subtree from server data, so an agent turn started while a refetch or
+   * write is in flight would read stale state. Await this before submitting a message.
    */
-  const flushPendingWrites = useCallback(() => inFlightRef.current, []);
+  const flushPendingWrites = useCallback(async () => {
+    await fetchInFlightRef.current;
+    await inFlightRef.current;
+  }, []);
 
-  return { data, dispatch, flushPendingWrites };
+  return { data, dispatch, flushPendingWrites, isFetching, fetchError };
 };

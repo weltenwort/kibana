@@ -25,8 +25,10 @@ import {
   emitLogExplorationAttachment,
   getLoopState,
   injectAttachmentIds,
+  readCurrentData,
   resolveRange,
 } from '../../attachments/emit_log_exploration_attachment';
+import { mergeFetchedPatterns } from '../../../common/log_exploration';
 import { getLogPatterns } from './handler';
 
 export const OBSERVABILITY_GET_LOG_PATTERNS_TOOL_ID = 'observability.get_log_patterns';
@@ -109,15 +111,22 @@ Runs an ES|QL query using CATEGORIZE and SPARKLINE, then emits the result as an 
         // The user's own filter state wins unless the model explicitly asked for a new range.
         const loopState = getLoopState(attachments);
         const timeRange = resolveRange({ start, end }, loopState.timeRange, DEFAULT_TIME_RANGE);
+        const mutedPatterns = loopState.mutedPatterns ?? [];
 
-        const patterns = await getLogPatterns({
+        const fetched = await getLogPatterns({
           esClient,
           start: timeRange.start,
           end: timeRange.end,
           index: resolvedIndex,
           kqlFilter,
           messageField,
+          mutedPatterns,
         });
+        const patterns = mergeFetchedPatterns(
+          readCurrentData(attachments)?.patterns,
+          fetched,
+          mutedPatterns
+        );
 
         const attachmentId = await emitLogExplorationAttachment(attachments, {
           type: 'pattern-table',
@@ -125,7 +134,7 @@ Runs an ES|QL query using CATEGORIZE and SPARKLINE, then emits the result as an 
           messageField,
           kqlFilter,
           timeRange,
-          mutedPatterns: loopState.mutedPatterns ?? [],
+          mutedPatterns,
           baselineEpoch: loopState.baselineEpoch,
           patterns,
           generatedAt: new Date().toISOString(),
@@ -137,8 +146,8 @@ Runs an ES|QL query using CATEGORIZE and SPARKLINE, then emits the result as an 
               {
                 type: ToolResultType.other,
                 data: {
-                  patternCount: patterns.length,
-                  mutedCount: loopState.mutedPatterns?.length ?? 0,
+                  patternCount: fetched.length,
+                  mutedCount: mutedPatterns.length,
                   timeRange,
                 },
               },

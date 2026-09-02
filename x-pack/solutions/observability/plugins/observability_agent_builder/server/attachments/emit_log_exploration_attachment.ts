@@ -15,7 +15,7 @@ import { OBSERVABILITY_LOG_EXPLORATION_ATTACHMENT_TYPE_ID } from '../../common';
 
 type Attachments = ToolHandlerContext['attachments'];
 
-const readCurrentData = (attachments: Attachments): LogExplorationData | undefined => {
+export const readCurrentData = (attachments: Attachments): LogExplorationData | undefined => {
   const existing = attachments
     .getActive()
     .find((a) => a.type === OBSERVABILITY_LOG_EXPLORATION_ATTACHMENT_TYPE_ID);
