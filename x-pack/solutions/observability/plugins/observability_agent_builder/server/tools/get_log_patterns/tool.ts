@@ -28,7 +28,7 @@ import {
   readCurrentData,
   resolveRange,
 } from '../../attachments/emit_log_exploration_attachment';
-import { mergeFetchedPatterns } from '../../../common/log_exploration';
+import { MAX_PATTERNS, mergeFetchedPatterns } from '../../../common/log_exploration';
 import { getLogPatterns } from './handler';
 
 export const OBSERVABILITY_GET_LOG_PATTERNS_TOOL_ID = 'observability.get_log_patterns';
@@ -88,13 +88,15 @@ export function createGetLogPatternsTool({
       idempotentHint: true,
       openWorldHint: false,
     },
-    description: `Groups logs into message patterns with a count and a trend sparkline for each, and renders them as an interactive table the user can filter directly.
+    description: `Groups logs into message patterns with a count and a trend sparkline for each, and renders the largest ${MAX_PATTERNS} of them as an interactive table the user can filter directly.
 
 When to use:
 - The user wants to see what kinds of log messages exist, find noisy patterns, or start narrowing down a large volume of logs.
 
 How it works:
-Runs an ES|QL query using CATEGORIZE and SPARKLINE, then emits the result as an interactive attachment. The full table is NOT returned to you — the result contains only attachment_ids. Render it with <render_attachment id="..." />.`,
+Runs an ES|QL query using CATEGORIZE and SPARKLINE, then emits the result as an interactive attachment. The full table is NOT returned to you — the result contains only attachment_ids. Render it with <render_attachment id="..." />.
+
+The query is LIMIT ${MAX_PATTERNS}, so the table is a top-N cut by document count, not the complete set of patterns in the logs. Say so when you describe it, and do not present these counts as covering every document.`,
     schema: getLogPatternsSchema,
     tags: ['observability', 'logs'],
     availability: {

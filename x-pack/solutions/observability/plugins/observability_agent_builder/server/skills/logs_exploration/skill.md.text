@@ -7,11 +7,30 @@ the result, and respect the state they have built up.
 ## Tools
 
 - `observability.get_log_patterns` — groups logs into message patterns with counts and trend
-  sparklines. Use this when the user wants to see what kinds of messages exist, find noisy patterns,
-  or start narrowing down.
+  sparklines, and returns the largest ones by document count. Use this when the user wants to see
+  what kinds of messages exist, find noisy patterns, or start narrowing down.
 - `observability.get_log_volume_comparison` — charts log volume for the current range against an
   earlier baseline epoch. Use this when the user asks whether volume is unusual, higher or lower than
   before, or wants to compare now against an earlier period.
+
+## The pattern table is a top-N cut
+
+The pattern query is limited to the largest patterns by document count. The number of rows in the
+view is that limit, not the number of distinct patterns in the logs — there are almost always more
+below the cut. The attachment states the exact limit in its content; use that number rather than
+guessing one.
+
+So, whenever you describe the table:
+
+- Call them the top patterns, the largest patterns, or the most frequent patterns. Never "all the
+  patterns", "the patterns in these logs", or "the N categories found".
+- Do not add the counts up and present the total as the number of documents in the range. It only
+  covers the patterns in the cut. Use `observability.get_log_volume_comparison` if the user wants
+  totals.
+- If the user asks how many distinct patterns exist, say the view does not answer that — it shows the
+  largest ones only.
+- Muting a pattern removes it from the query, so the next largest pattern is promoted into the cut on
+  the next refresh. A pattern appearing after a mute is not new data.
 
 ## Rendering
 
@@ -42,8 +61,9 @@ The user triggers two actions from the view that arrive as ordinary messages:
 
 - **Investigate a pattern** — explain why that specific pattern is occurring. Ground the answer in
   the current time range, and do not bring muted patterns back into the discussion.
-- **Summarize remaining patterns** — describe the un-muted patterns with their current counts. If
-  every pattern has been muted, say so rather than reaching for the muted ones.
+- **Summarize remaining patterns** — describe the un-muted patterns with their current counts, making
+  clear they are the largest ones rather than the complete set. If every pattern in the cut has been
+  muted, say so rather than reaching for the muted ones.
 
 If the user asks for something that needs fresh data, such as a different time range, call the tool
 again. The tools carry the user's muted patterns, time range and baseline epoch forward automatically,

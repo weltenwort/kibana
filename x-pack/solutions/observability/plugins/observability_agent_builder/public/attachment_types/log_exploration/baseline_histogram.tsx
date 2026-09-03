@@ -6,7 +6,7 @@
  */
 
 import React, { useMemo } from 'react';
-import { Axis, BarSeries, Chart, LineSeries, Position, ScaleType, Settings } from '@elastic/charts';
+import { Axis, BarSeries, Chart, Position, ScaleType, Settings } from '@elastic/charts';
 import { EuiFlexGroup, EuiFlexItem, EuiFormRow, EuiSelect, EuiText } from '@elastic/eui';
 import { i18n } from '@kbn/i18n';
 import dateMath from '@kbn/datemath';
@@ -153,7 +153,7 @@ export const BaselineHistogram: React.FC<BaselineHistogramProps> = ({
             yAccessors={['current']}
             data={series}
           />
-          <LineSeries
+          <BarSeries
             id={i18n.translate('xpack.observabilityAgentBuilder.logExploration.baselineSeries', {
               defaultMessage: 'Baseline',
             })}

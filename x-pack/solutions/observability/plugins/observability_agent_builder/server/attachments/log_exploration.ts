@@ -8,7 +8,7 @@
 import dedent from 'dedent';
 import type { AttachmentTypeDefinition } from '@kbn/agent-builder-server/attachments';
 import type { LogExplorationData } from '../../common/log_exploration';
-import { logExplorationDataSchema } from '../../common/log_exploration';
+import { logExplorationDataSchema, MAX_PATTERNS } from '../../common/log_exploration';
 import { OBSERVABILITY_LOG_EXPLORATION_ATTACHMENT_TYPE_ID } from '../../common';
 
 const formatPatternTable = (data: LogExplorationData): string => {
@@ -17,12 +17,16 @@ const formatPatternTable = (data: LogExplorationData): string => {
 
   const rows = remaining.length
     ? remaining.map((p) => `- ${p.pattern} (count: ${p.count})`).join('\n')
-    : '(none remaining — every discovered pattern has been muted)';
+    : '(none remaining — every pattern in the current cut has been muted)';
 
   return (
     dedent(`
     View: log pattern table
-    Remaining patterns, which are the ONLY ones you may discuss:
+    This is the TOP ${MAX_PATTERNS} patterns by document count, not every pattern in the logs. The
+    query is a top-N cut, so more patterns almost certainly exist below it. Never say or imply that
+    the logs contain only these, and never total these counts and present the result as the total
+    document count. Muting a pattern promotes the next largest one into the cut.
+    Patterns currently in the cut, which are the ONLY ones you may discuss:
   `) + `\n${rows}`
   );
 };
@@ -92,8 +96,11 @@ export function createLogExplorationAttachmentType(): AttachmentTypeDefinition<
     getAgentDescription: () =>
       dedent(`
         An interactive log exploration view rendered in the conversation. It shows either a table of
-        log patterns with per-pattern trend sparklines, or log volume for the current time range
-        overlaid on a user-chosen baseline epoch.
+        the top log patterns by document count, each with a trend sparkline, or log volume for the
+        current time range overlaid on a user-chosen baseline epoch.
+
+        The pattern table is a top-N cut, never the full set of patterns in the logs, so treat its
+        rows as "the largest patterns" rather than "the patterns that exist".
 
         The user mutes noisy patterns, changes the time range and picks the baseline epoch directly
         in the view, without asking you. Always read the attachment's current state before answering

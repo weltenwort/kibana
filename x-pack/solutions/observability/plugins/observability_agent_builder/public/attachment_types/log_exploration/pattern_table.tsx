@@ -16,6 +16,7 @@ import {
 import { i18n } from '@kbn/i18n';
 import type { ChartsPluginStart } from '@kbn/charts-plugin/public';
 import type { LogExplorationData } from '../../../common/log_exploration';
+import { MAX_PATTERNS } from '../../../common/log_exploration';
 import type { LogExplorationAction } from './use_log_exploration_state';
 import { SparklineChart } from './sparkline_chart';
 
@@ -147,7 +148,9 @@ export const PatternTable: React.FC<PatternTableProps> = ({
     return (
       <EuiText size="s" color="subdued">
         {i18n.translate('xpack.observabilityAgentBuilder.logExploration.allMuted', {
-          defaultMessage: 'No patterns left to show. Unmute one to bring it back.',
+          defaultMessage:
+            'None of the top {limit} patterns are left to show. Unmute one to bring it back.',
+          values: { limit: MAX_PATTERNS },
         })}
       </EuiText>
     );
@@ -156,7 +159,8 @@ export const PatternTable: React.FC<PatternTableProps> = ({
   return (
     <EuiDataGrid
       aria-label={i18n.translate('xpack.observabilityAgentBuilder.logExploration.gridAriaLabel', {
-        defaultMessage: 'Log patterns',
+        defaultMessage: 'Top {limit} log patterns by document count',
+        values: { limit: MAX_PATTERNS },
       })}
       columns={COLUMNS}
       columnVisibility={{ visibleColumns, setVisibleColumns }}

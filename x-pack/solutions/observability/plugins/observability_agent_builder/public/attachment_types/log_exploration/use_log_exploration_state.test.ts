@@ -5,8 +5,13 @@
  * 2.0.
  */
 
+import { act, renderHook } from '@testing-library/react';
 import type { LogExplorationData } from '../../../common/log_exploration';
-import { logExplorationReducer } from './use_log_exploration_state';
+import {
+  MUTE_FETCH_DEBOUNCE_MS,
+  logExplorationReducer,
+  useLogExplorationState,
+} from './use_log_exploration_state';
 
 const pattern = (name: string, count: number) => ({ pattern: name, count, sparkline: [] });
 
@@ -79,6 +84,88 @@ describe('logExplorationReducer', () => {
       });
 
       expect(next.baselineEpoch).toEqual(withBaseline.baselineEpoch);
+    });
+  });
+});
+
+describe('useLogExplorationState', () => {
+  const generatedAt = '2026-01-01T02:00:00.000Z';
+
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+
+  const setup = (fetchView = jest.fn().mockResolvedValue({ patterns: [], generatedAt })) => {
+    const updateContent = jest.fn().mockResolvedValue(undefined);
+    const { result } = renderHook(() =>
+      useLogExplorationState({ initialData: baseData, updateContent, fetchView })
+    );
+    return { result, updateContent, fetchView };
+  };
+
+  const mutedIn = (call: unknown[]) => (call[0] as LogExplorationData).mutedPatterns;
+
+  it('collapses a burst of mutes into one refetch', async () => {
+    const { result, fetchView } = setup();
+
+    act(() => {
+      result.current.dispatch({ type: 'MUTE_PATTERN', pattern: 'kept' });
+      result.current.dispatch({ type: 'MUTE_PATTERN', pattern: 'other' });
+    });
+    expect(fetchView).not.toHaveBeenCalled();
+
+    await act(async () => {
+      jest.advanceTimersByTime(MUTE_FETCH_DEBOUNCE_MS);
+    });
+
+    expect(fetchView).toHaveBeenCalledTimes(1);
+    expect(fetchView.mock.calls[0][0].data.mutedPatterns).toEqual(['noisy', 'kept', 'other']);
+  });
+
+  it('fires a waiting mute refetch on flush rather than waiting out the timer', async () => {
+    const { result, updateContent, fetchView } = setup();
+
+    act(() => {
+      result.current.dispatch({ type: 'MUTE_PATTERN', pattern: 'kept' });
+    });
+    await act(async () => {
+      await result.current.flushPendingWrites();
+    });
+
+    expect(fetchView).toHaveBeenCalledTimes(1);
+    expect(mutedIn(updateContent.mock.calls[0])).toEqual(['noisy', 'kept']);
+  });
+
+  it('persists the mute when its refetch fails, since nothing else writes it', async () => {
+    const { result, updateContent } = setup(jest.fn().mockRejectedValue(new Error('boom')));
+
+    act(() => {
+      result.current.dispatch({ type: 'MUTE_PATTERN', pattern: 'kept' });
+    });
+    await act(async () => {
+      jest.advanceTimersByTime(MUTE_FETCH_DEBOUNCE_MS);
+    });
+
+    expect(mutedIn(updateContent.mock.calls[0])).toEqual(['noisy', 'kept']);
+  });
+
+  it('lets a range change supersede a pending mute refetch without losing the mute', async () => {
+    const { result, fetchView } = setup();
+
+    act(() => {
+      result.current.dispatch({ type: 'MUTE_PATTERN', pattern: 'kept' });
+      result.current.dispatch({
+        type: 'SET_TIME_RANGE',
+        timeRange: { start: 'now-24h', end: 'now' },
+      });
+    });
+    await act(async () => {
+      jest.advanceTimersByTime(MUTE_FETCH_DEBOUNCE_MS);
+    });
+
+    expect(fetchView).toHaveBeenCalledTimes(1);
+    expect(fetchView.mock.calls[0][0].data).toMatchObject({
+      timeRange: { start: 'now-24h', end: 'now' },
+      mutedPatterns: ['noisy', 'kept'],
     });
   });
 });

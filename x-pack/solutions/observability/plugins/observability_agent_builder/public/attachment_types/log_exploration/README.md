@@ -118,18 +118,25 @@ leave the attachment describing a range whose table still belongs to the previou
 
 Which interactions refetch, and why:
 
-| Interaction    | Refetches | Reason                                                                        |
-| -------------- | --------- | ----------------------------------------------------------------------------- |
-| Time range     | yes       | Every number in the view belongs to the window                                |
-| Baseline epoch | yes       | The baseline series is queried per epoch                                      |
-| Unmute         | yes       | The query excluded the pattern, so its retained count is from an older window |
-| Mute           | no        | Hides a row that was already queried for this window; stays instant (~50 ms)  |
+| Interaction    | Refetches      | Reason                                                                        |
+| -------------- | -------------- | ----------------------------------------------------------------------------- |
+| Time range     | yes            | Every number in the view belongs to the window                                |
+| Baseline epoch | yes            | The baseline series is queried per epoch                                      |
+| Unmute         | yes            | The query excluded the pattern, so its retained count is from an older window |
+| Mute           | yes, debounced | Only `MAX_PATTERNS` rows are shown, so the row below the cut has to move up   |
 
-Mute is the deliberate exception. The query is `LIMIT 25`, so muting could let a new pattern into the
-top-N, but paying an ES|QL round trip (~250 ms) per mute would weaken the "instant" claim this PoC
-exists to test. Instead the query pushes muted patterns down as a `must_not` DSL filter, so the top-N
-backfills on the next refetch, and the client keeps the previously seen entry for every muted pattern
+Mute is the one debounced case. The query is `LIMIT 8`, so muting leaves a visibly short table until
+the top-N backfills, which is why it now refetches rather than only hiding the row. The row still
+disappears locally before any I/O, so the interaction stays instant; the query behind it is delayed by
+`MUTE_FETCH_DEBOUNCE_MS` so that clicking down a list of patterns costs one query and one attachment
+version instead of one of each per click. The query pushes muted patterns down as a `must_not` DSL
+filter so the top-N backfills, and the client keeps the previously seen entry for every muted pattern
 so unmute has something to show while its refetch is in flight.
+
+A pending mute refetch is a write that has not happened yet, so `flushPendingWrites` fires it
+immediately rather than waiting out the timer — otherwise an agent turn started right after a mute
+reads state the server has never seen. For the same reason a failed mute refetch still persists: mute
+is no longer written by anything else, so dropping the write would lose it on the next remount.
 
 Ordering and failure: each refetch carries a sequence number and aborts its predecessor, so the latest
 interaction wins regardless of response order. A failed refetch rolls back the **window only** —

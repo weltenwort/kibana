@@ -81,15 +81,22 @@ export const logExplorationReducer = (
 };
 
 /**
- * Muting only hides a row that was already queried for this window, so it stays instant. Everything
- * else needs data the view does not have: a new window, or a pattern the last query excluded.
+ * Long enough that clicking down a list of patterns costs one query and one attachment version
+ * rather than one of each per click, short enough that the backfill still reads as part of the mute.
  */
-const requiresFetch = (action: LogExplorationAction) =>
+export const MUTE_FETCH_DEBOUNCE_MS = 300;
+
+/** Each of these needs data the view does not have: a new window, or a pattern the last query excluded. */
+const requiresImmediateFetch = (action: LogExplorationAction) =>
   action.type === 'SET_TIME_RANGE' ||
   action.type === 'SET_BASELINE_EPOCH' ||
   action.type === 'UNMUTE_PATTERN';
 
-const isPersistable = (action: LogExplorationAction) => action.type === 'MUTE_PATTERN';
+/**
+ * The row hides locally before any I/O, so mute still reads as instant; the refetch behind it
+ * backfills the top-N, which matters more now that the table shows only `MAX_PATTERNS` rows.
+ */
+const requiresDebouncedFetch = (action: LogExplorationAction) => action.type === 'MUTE_PATTERN';
 
 const isAbortError = (error: unknown) => error instanceof Error && error.name === 'AbortError';
 
@@ -131,12 +138,16 @@ export const useLogExplorationState = ({
   // Latest request wins: an older fetch resolving late must not overwrite a newer window.
   const requestSeqRef = useRef(0);
   const abortRef = useRef<AbortController>();
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  // Rollback base for a mute burst: the state before its first mute, not before its last.
+  const debouncedSnapshotRef = useRef<LogExplorationData>();
 
   useEffect(() => {
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
       abortRef.current?.abort();
+      clearTimeout(debounceTimerRef.current);
     };
   }, []);
 
@@ -169,7 +180,11 @@ export const useLogExplorationState = ({
    * belongs to the previous one.
    */
   const runFetch = useCallback(
-    (next: LogExplorationData, snapshot: LogExplorationData) => {
+    (
+      next: LogExplorationData,
+      snapshot: LogExplorationData,
+      { persistOnFailure = false }: { persistOnFailure?: boolean } = {}
+    ) => {
       if (!fetchView) {
         return;
       }
@@ -201,11 +216,49 @@ export const useLogExplorationState = ({
           rawDispatch(action);
           setIsFetching(false);
           setFetchError(toError(error).message);
+          // A mute is written only by its own refetch, so a failed one still has to persist it.
+          if (persistOnFailure) {
+            persist(dataRef.current);
+          }
         }
       );
     },
     [fetchView, persist]
   );
+
+  const cancelDebouncedFetch = useCallback(() => {
+    clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = undefined;
+  }, []);
+
+  const scheduleFetch = useCallback(
+    (next: LogExplorationData, snapshot: LogExplorationData) => {
+      if (!fetchView) {
+        persist(next);
+        return;
+      }
+      debouncedSnapshotRef.current = debouncedSnapshotRef.current ?? snapshot;
+      cancelDebouncedFetch();
+      debounceTimerRef.current = setTimeout(() => {
+        debounceTimerRef.current = undefined;
+        const base = debouncedSnapshotRef.current ?? snapshot;
+        debouncedSnapshotRef.current = undefined;
+        runFetch(dataRef.current, base, { persistOnFailure: true });
+      }, MUTE_FETCH_DEBOUNCE_MS);
+    },
+    [cancelDebouncedFetch, fetchView, persist, runFetch]
+  );
+
+  /** Fires a waiting mute refetch now, so nothing can observe a mute that has not been written. */
+  const flushDebouncedFetch = useCallback(() => {
+    if (debounceTimerRef.current === undefined) {
+      return;
+    }
+    cancelDebouncedFetch();
+    const snapshot = debouncedSnapshotRef.current ?? dataRef.current;
+    debouncedSnapshotRef.current = undefined;
+    runFetch(dataRef.current, snapshot, { persistOnFailure: true });
+  }, [cancelDebouncedFetch, runFetch]);
 
   const dispatch = useCallback(
     (action: LogExplorationAction) => {
@@ -216,13 +269,15 @@ export const useLogExplorationState = ({
       }
       dataRef.current = next;
       rawDispatch(action);
-      if (requiresFetch(action)) {
+      if (requiresImmediateFetch(action)) {
+        cancelDebouncedFetch();
+        debouncedSnapshotRef.current = undefined;
         runFetch(next, current);
-      } else if (isPersistable(action)) {
-        persist(next);
+      } else if (requiresDebouncedFetch(action)) {
+        scheduleFetch(next, current);
       }
     },
-    [persist, runFetch]
+    [cancelDebouncedFetch, runFetch, scheduleFetch]
   );
 
   /**
@@ -230,9 +285,10 @@ export const useLogExplorationState = ({
    * write is in flight would read stale state. Await this before submitting a message.
    */
   const flushPendingWrites = useCallback(async () => {
+    flushDebouncedFetch();
     await fetchInFlightRef.current;
     await inFlightRef.current;
-  }, []);
+  }, [flushDebouncedFetch]);
 
   return { data, dispatch, flushPendingWrites, isFetching, fetchError };
 };

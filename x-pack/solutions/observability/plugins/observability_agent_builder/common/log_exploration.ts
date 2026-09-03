@@ -7,14 +7,16 @@
 
 import { z } from '@kbn/zod/v4';
 
-export const MAX_PATTERNS = 25;
+/** Rows the table shows, and so the `LIMIT` of the pattern query and the list `format()` gives the model. */
+export const MAX_PATTERNS = 8;
 export const MAX_MUTED_PATTERNS = 50;
 export const MAX_SPARKLINE_BUCKETS = 40;
 export const MAX_HISTOGRAM_BUCKETS = 60;
 
 /**
  * A refetch queries `MAX_PATTERNS` un-muted patterns but keeps the previously seen entry for every
- * muted one, so unmuting can restore a row without another round trip.
+ * muted one, so unmuting can restore a row without another round trip. Derived, not a literal: the
+ * retained set grows to `MAX_MUTED_PATTERNS` independently of how many rows the table shows.
  */
 export const MAX_STORED_PATTERNS = MAX_PATTERNS + MAX_MUTED_PATTERNS;
 
