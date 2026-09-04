@@ -83,15 +83,32 @@ export const LogExplorationAttachment: React.FC<LogExplorationAttachmentProps> =
     if (!registerActionButtons || !submitMessage) {
       return;
     }
+    // One action per lens, and never zero: `AttachmentHeader` returns null without buttons, taking
+    // the title, icon and badges with it.
+    const action =
+      data.view.type === 'pattern-table'
+        ? {
+            label: i18n.translate(
+              'xpack.observabilityAgentBuilder.logExploration.summarizePatternsLabel',
+              { defaultMessage: 'Summarize top patterns' }
+            ),
+            message: 'Summarize the remaining un-muted log patterns with their current counts.',
+          }
+        : {
+            label: i18n.translate(
+              'xpack.observabilityAgentBuilder.logExploration.explainVolumeChangeLabel',
+              { defaultMessage: 'Explain this change' }
+            ),
+            message:
+              'Explain how log volume in the current time range compares with the baseline epoch.',
+          };
+
     registerActionButtons([
       {
-        label: i18n.translate('xpack.observabilityAgentBuilder.logExploration.summarizeLabel', {
-          defaultMessage: 'Summarize remaining patterns',
-        }),
+        label: action.label,
         icon: 'sparkles',
         type: ActionButtonType.PRIMARY,
-        handler: () =>
-          startTurn('Summarize the remaining un-muted log patterns with their current counts.'),
+        handler: () => startTurn(action.message),
       },
     ]);
     // Re-register on every state change so the handler closes over current state, not stale state.

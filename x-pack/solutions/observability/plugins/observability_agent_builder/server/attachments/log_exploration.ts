@@ -37,23 +37,105 @@ const formatPatternTable = (
     query is a top-N cut, so more patterns almost certainly exist below it. Never say or imply that
     the logs contain only these, and never total these counts and present the result as the total
     document count. Muting a pattern promotes the next largest one into the cut.
-    Patterns currently in the cut, which are the ONLY ones you may discuss:
+    The ${remaining.length} patterns below are the ONLY ones you may discuss. Use that number as the
+    count of un-muted patterns rather than counting or subtracting yourself:
   `) + `\n${rows}`
   );
+};
+
+const total = (values: number[]): number => values.reduce((sum, value) => sum + value, 0);
+
+const signed = (value: number): string => (value > 0 ? `+${value}` : `${value}`);
+
+/** Index of the largest value, or -1 for an empty series. */
+const peakIndex = (values: number[]): number =>
+  values.reduce((best, value, index) => (best === -1 || value > values[best] ? index : best), -1);
+
+/** Index of the biggest current-vs-baseline swing, by absolute size. The series are index-aligned. */
+const movedMostIndex = (current: number[], baseline: number[]): number => {
+  const length = Math.max(current.length, baseline.length);
+  return Array.from({ length }, (_, index) => index).reduce(
+    (best, index) =>
+      best === -1 ||
+      Math.abs((current[index] ?? 0) - (baseline[index] ?? 0)) >
+        Math.abs((current[best] ?? 0) - (baseline[best] ?? 0))
+        ? index
+        : best,
+    -1
+  );
+};
+
+const bucketTime = (startMs: number, intervalMs: number, index: number): string =>
+  new Date(startMs + index * intervalMs).toISOString();
+
+/**
+ * The model never receives the series, only these summary points, so the chart's shape has to be
+ * stated for it — otherwise the only honest answer it can give about a volume change is the two
+ * totals, which the user is already looking at.
+ */
+const formatHistogramShape = (
+  result: Extract<LogExplorationResult, { type: 'volume-comparison' }>
+): string => {
+  const { current, baseline, intervalMs, startMs, baselineStartMs } = result.histogram;
+  const currentPeak = peakIndex(current);
+  const baselinePeak = peakIndex(baseline);
+  const moved = movedMostIndex(current, baseline);
+
+  const lines: string[] = [];
+
+  if (currentPeak !== -1) {
+    lines.push(
+      `Busiest bucket in the current range: ${bucketTime(startMs, intervalMs, currentPeak)} (${
+        current[currentPeak]
+      } documents)`
+    );
+  }
+  if (baselinePeak !== -1) {
+    lines.push(
+      `Busiest bucket in the baseline epoch: ${bucketTime(
+        baselineStartMs,
+        intervalMs,
+        baselinePeak
+      )} (${baseline[baselinePeak]} documents)`
+    );
+  }
+  if (moved !== -1) {
+    lines.push(
+      `Bucket that moved most against the baseline: ${bucketTime(startMs, intervalMs, moved)}, ` +
+        `${current[moved] ?? 0} now against ${baseline[moved] ?? 0} at the same offset in the ` +
+        `baseline (${signed((current[moved] ?? 0) - (baseline[moved] ?? 0))})`
+    );
+  }
+
+  return lines.join('\n');
 };
 
 const formatHistogram = (
   result: Extract<LogExplorationResult, { type: 'volume-comparison' }>
 ): string => {
   const { current, baseline, intervalMs } = result.histogram;
-  const total = (values: number[]) => values.reduce((sum, value) => sum + value, 0);
+  const currentTotal = total(current);
+  const baselineTotal = total(baseline);
+  const change = currentTotal - baselineTotal;
+  const percent =
+    baselineTotal === 0
+      ? '(no baseline documents to compare against)'
+      : `${signed(Math.round((change / baselineTotal) * 1000) / 10)}%`;
 
-  return dedent(`
+  return (
+    dedent(`
     View: log volume histogram, current range overlaid on the baseline epoch
     Bucket interval: ${intervalMs}ms across ${current.length} buckets
-    Total documents in current range: ${total(current)}
-    Total documents in baseline epoch: ${total(baseline)}
-  `);
+    Total documents in current range: ${currentTotal}
+    Total documents in baseline epoch: ${baselineTotal}
+    Change against the baseline: ${signed(change)} documents, ${percent}
+  `) +
+    `\n${formatHistogramShape(result)}\n` +
+    dedent(`
+    These points are computed from the full bucket series and are enough to describe the change.
+    Do not assert a trend, a spike or a shape beyond what they state.
+  `)
+  );
 };
 
 const formatView = (data: LogExplorationData): string => {
@@ -75,8 +157,9 @@ const formatView = (data: LogExplorationData): string => {
 const formatRefinements = (refinements: LogExplorationRefinement[]): string => {
   const excluded = excludedPatterns(refinements);
   const sections = [
-    `MUTED PATTERNS (${excluded.length}) — the user dismissed these as noise. Never mention,\n` +
-      `summarize, count or investigate them:\n` +
+    `MUTED PATTERNS (${excluded.length}) — the user dismissed these as noise. Never name them in an\n` +
+      `answer, never include them in a summary, count or comparison, and never investigate them. You\n` +
+      `may say how many are muted. They are listed here only so you can recognise and avoid them:\n` +
       (excluded.length ? excluded.map((pattern) => `- ${pattern}`).join('\n') : '(none)'),
   ];
 
@@ -100,6 +183,12 @@ export function createLogExplorationAttachmentType(): AttachmentTypeDefinition<
 > {
   return {
     id: OBSERVABILITY_LOG_EXPLORATION_ATTACHMENT_TYPE_ID,
+    // `attachment_read` is the only path that puts content in the model's context, and it returns
+    // the raw payload unless the type is readonly — in which case it returns `format()` below.
+    // Without this the muted-pattern and top-N framing never reach the model at all. The framework
+    // enforces `readonly` only in the agent's own add/update tools, not in the state manager or the
+    // content route, so the tool emit and the user's writes are unaffected.
+    isReadonly: true,
     validate: (input) => {
       const parsed = logExplorationDataSchema.safeParse(input);
       if (parsed.success) {
