@@ -6,10 +6,15 @@
  */
 
 import type { IScopedClusterClient } from '@kbn/core/server';
-import type { LogExplorationHistogram } from '../../../common/log_exploration';
+import type { QueryDslQueryContainer } from '@elastic/elasticsearch/lib/api/types';
+import type {
+  LogExplorationHistogram,
+  LogExplorationRefinement,
+} from '../../../common/log_exploration';
 import { MAX_HISTOGRAM_BUCKETS } from '../../../common/log_exploration';
 import { parseDatemath } from '../../utils/time';
-import { assertSafeIndexPattern, pickBucketInterval } from '../../utils/esql';
+import { assertSafeFieldName, assertSafeIndexPattern, pickBucketInterval } from '../../utils/esql';
+import { buildRefinementFilter } from '../../utils/log_exploration_refinements';
 
 interface Epoch {
   startMs: number;
@@ -19,14 +24,14 @@ interface Epoch {
 async function getBucketedCounts({
   esClient,
   index,
-  kqlFilter,
+  filter,
   epoch,
   intervalLiteral,
   intervalMs,
 }: {
   esClient: IScopedClusterClient;
   index: string;
-  kqlFilter?: string;
+  filter?: QueryDslQueryContainer;
   epoch: Epoch;
   intervalLiteral: string;
   intervalMs: number;
@@ -45,7 +50,7 @@ async function getBucketedCounts({
       { tstart: new Date(epoch.startMs).toISOString() },
       { tend: new Date(epoch.endMs).toISOString() },
     ],
-    ...(kqlFilter ? { filter: { query_string: { query: kqlFilter } } } : {}),
+    ...(filter ? { filter } : {}),
   });
 
   const columns = response.columns ?? [];
@@ -80,7 +85,8 @@ async function getBucketedCounts({
 export async function getLogVolumeComparison({
   esClient,
   index,
-  kqlFilter,
+  messageField,
+  refinements = [],
   start,
   end,
   baselineStart,
@@ -88,7 +94,8 @@ export async function getLogVolumeComparison({
 }: {
   esClient: IScopedClusterClient;
   index: string;
-  kqlFilter?: string;
+  messageField: string;
+  refinements?: LogExplorationRefinement[];
   start: string;
   end: string;
   baselineStart: string;
@@ -106,11 +113,17 @@ export async function getLogVolumeComparison({
   // One interval for both epochs, otherwise the two series cannot be overlaid.
   const interval = pickBucketInterval(current.endMs - current.startMs, MAX_HISTOGRAM_BUCKETS - 12);
 
+  // Both epochs carry the same refinements, so the comparison stays like-for-like.
+  const filter = buildRefinementFilter({
+    refinements,
+    messageField: assertSafeFieldName(messageField),
+  });
+
   const [currentSeries, baselineSeries] = await Promise.all([
     getBucketedCounts({
       esClient,
       index,
-      kqlFilter,
+      filter,
       epoch: current,
       intervalLiteral: interval.literal,
       intervalMs: interval.ms,
@@ -118,7 +131,7 @@ export async function getLogVolumeComparison({
     getBucketedCounts({
       esClient,
       index,
-      kqlFilter,
+      filter,
       epoch: baseline,
       intervalLiteral: interval.literal,
       intervalMs: interval.ms,

@@ -7,13 +7,24 @@
 
 import dedent from 'dedent';
 import type { AttachmentTypeDefinition } from '@kbn/agent-builder-server/attachments';
-import type { LogExplorationData } from '../../common/log_exploration';
-import { logExplorationDataSchema, MAX_PATTERNS } from '../../common/log_exploration';
+import type {
+  LogExplorationData,
+  LogExplorationRefinement,
+  LogExplorationResult,
+} from '../../common/log_exploration';
+import {
+  excludedPatterns,
+  logExplorationDataSchema,
+  MAX_PATTERNS,
+} from '../../common/log_exploration';
 import { OBSERVABILITY_LOG_EXPLORATION_ATTACHMENT_TYPE_ID } from '../../common';
 
-const formatPatternTable = (data: LogExplorationData): string => {
-  const muted = new Set(data.mutedPatterns);
-  const remaining = (data.patterns ?? []).filter((p) => !muted.has(p.pattern));
+const formatPatternTable = (
+  result: Extract<LogExplorationResult, { type: 'pattern-table' }>,
+  excluded: string[]
+): string => {
+  const isExcluded = new Set(excluded);
+  const remaining = result.patterns.filter((p) => !isExcluded.has(p.pattern));
 
   const rows = remaining.length
     ? remaining.map((p) => `- ${p.pattern} (count: ${p.count})`).join('\n')
@@ -31,11 +42,10 @@ const formatPatternTable = (data: LogExplorationData): string => {
   );
 };
 
-const formatHistogram = (data: LogExplorationData): string => {
-  if (!data.histogram) {
-    return 'View: log volume histogram (no data)';
-  }
-  const { current, baseline, intervalMs } = data.histogram;
+const formatHistogram = (
+  result: Extract<LogExplorationResult, { type: 'volume-comparison' }>
+): string => {
+  const { current, baseline, intervalMs } = result.histogram;
   const total = (values: number[]) => values.reduce((sum, value) => sum + value, 0);
 
   return dedent(`
@@ -44,6 +54,44 @@ const formatHistogram = (data: LogExplorationData): string => {
     Total documents in current range: ${total(current)}
     Total documents in baseline epoch: ${total(baseline)}
   `);
+};
+
+const formatView = (data: LogExplorationData): string => {
+  // The lens and its cache are written together, so they only disagree if a payload was hand-edited.
+  if (data.view.type === 'pattern-table' && data.result.type === 'pattern-table') {
+    return formatPatternTable(data.result, excludedPatterns(data.refinements));
+  }
+  if (data.view.type === 'volume-comparison' && data.result.type === 'volume-comparison') {
+    return formatHistogram(data.result);
+  }
+  return `View: ${data.view.type} (no data)`;
+};
+
+/**
+ * Refinements are stored uniformly but described one kind at a time. The exclusion wording in
+ * particular is what stops the model reaching for a muted pattern when asked to summarize, so it
+ * stays a hand-written sentence rather than a generic list of narrowings.
+ */
+const formatRefinements = (refinements: LogExplorationRefinement[]): string => {
+  const excluded = excludedPatterns(refinements);
+  const sections = [
+    `MUTED PATTERNS (${excluded.length}) — the user dismissed these as noise. Never mention,\n` +
+      `summarize, count or investigate them:\n` +
+      (excluded.length ? excluded.map((pattern) => `- ${pattern}`).join('\n') : '(none)'),
+  ];
+
+  for (const refinement of refinements) {
+    if (refinement.kind === 'only-pattern') {
+      sections.push(
+        `SCOPED TO ONE PATTERN — every number below counts only logs matching "${refinement.pattern}". Say so when you describe them.`
+      );
+    }
+    if (refinement.kind === 'kql') {
+      sections.push(`KQL filter applied to every view here: ${refinement.query}`);
+    }
+  }
+
+  return sections.join('\n\n');
 };
 
 export function createLogExplorationAttachmentType(): AttachmentTypeDefinition<
@@ -59,7 +107,7 @@ export function createLogExplorationAttachmentType(): AttachmentTypeDefinition<
       }
       return { valid: false, error: parsed.error.message };
     },
-    // Re-read on every round, so user mutes made between turns are visible to the model here.
+    // Re-read on every round, so refinements the user made between turns are visible to the model here.
     format: (attachment) => {
       const { data } = attachment;
 
@@ -70,25 +118,18 @@ export function createLogExplorationAttachmentType(): AttachmentTypeDefinition<
             Interactive log exploration view. The user steers this view directly; the state below is
             their current filter state and overrides anything you established in earlier turns.
 
-            Index: ${data.index}
-            Message field: ${data.messageField}
-            ${data.kqlFilter ? `KQL filter: ${data.kqlFilter}` : 'KQL filter: (none)'}
-            Active time range: ${data.timeRange.start} to ${data.timeRange.end}
+            Index: ${data.source.index}
+            Message field: ${data.source.messageField}
+            Active time range: ${data.source.timeRange.start} to ${data.source.timeRange.end}
             Baseline epoch: ${
-              data.baselineEpoch
-                ? `${data.baselineEpoch.start} to ${data.baselineEpoch.end}`
+              data.view.type === 'volume-comparison'
+                ? `${data.view.baselineEpoch.start} to ${data.view.baselineEpoch.end}`
                 : '(not set)'
             }
 
-            MUTED PATTERNS (${data.mutedPatterns.length}) — the user dismissed these as noise. Never
-            mention, summarize, count or investigate them:
-            ${
-              data.mutedPatterns.length
-                ? data.mutedPatterns.map((pattern) => `- ${pattern}`).join('\n')
-                : '(none)'
-            }
+            ${formatRefinements(data.refinements)}
 
-            ${data.type === 'pattern-table' ? formatPatternTable(data) : formatHistogram(data)}
+            ${formatView(data)}
           `),
         }),
       };
@@ -103,8 +144,9 @@ export function createLogExplorationAttachmentType(): AttachmentTypeDefinition<
         rows as "the largest patterns" rather than "the patterns that exist".
 
         The user mutes noisy patterns, changes the time range and picks the baseline epoch directly
-        in the view, without asking you. Always read the attachment's current state before answering
-        questions about log patterns, and treat muted patterns as though they do not exist.
+        in the view, without asking you. Every filter listed in the attachment narrows every view it
+        offers. Always read the attachment's current state before answering questions about log
+        patterns, and treat muted patterns as though they do not exist.
       `),
   };
 }

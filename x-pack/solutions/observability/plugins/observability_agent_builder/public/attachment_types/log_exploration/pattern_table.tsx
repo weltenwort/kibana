@@ -16,7 +16,7 @@ import {
 import { i18n } from '@kbn/i18n';
 import type { ChartsPluginStart } from '@kbn/charts-plugin/public';
 import type { LogExplorationData } from '../../../common/log_exploration';
-import { MAX_PATTERNS } from '../../../common/log_exploration';
+import { excludedPatterns, MAX_PATTERNS } from '../../../common/log_exploration';
 import type { LogExplorationAction } from './use_log_exploration_state';
 import { SparklineChart } from './sparkline_chart';
 
@@ -64,9 +64,10 @@ export const PatternTable: React.FC<PatternTableProps> = ({
   const [visibleColumns, setVisibleColumns] = useState(COLUMNS.map(({ id }) => id));
 
   const rows = useMemo(() => {
-    const muted = new Set(data.mutedPatterns);
-    return (data.patterns ?? []).filter((row) => !muted.has(row.pattern));
-  }, [data.patterns, data.mutedPatterns]);
+    const excluded = new Set(excludedPatterns(data.refinements));
+    const patterns = data.result.type === 'pattern-table' ? data.result.patterns : [];
+    return patterns.filter((row) => !excluded.has(row.pattern));
+  }, [data.result, data.refinements]);
 
   const renderCellValue = useCallback(
     ({ rowIndex, columnId }: { rowIndex: number; columnId: string }) => {
@@ -113,7 +114,16 @@ export const PatternTable: React.FC<PatternTableProps> = ({
                       'xpack.observabilityAgentBuilder.logExploration.muteAriaLabel',
                       { defaultMessage: 'Mute pattern' }
                     )}
-                    onClick={() => dispatch({ type: 'MUTE_PATTERN', pattern: row.pattern })}
+                    onClick={() =>
+                      dispatch({
+                        type: 'ADD_REFINEMENT',
+                        refinement: {
+                          kind: 'exclude-pattern',
+                          origin: 'user',
+                          pattern: row.pattern,
+                        },
+                      })
+                    }
                   />
                 </EuiToolTip>
               )}

@@ -8,18 +8,25 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import type {
   LogExplorationData,
-  LogExplorationFetchResult,
+  LogExplorationRefinement,
+  LogExplorationResult,
   LogExplorationTimeRange,
+  LogExplorationView,
 } from '../../../common/log_exploration';
-import { mergeFetchedPatterns } from '../../../common/log_exploration';
+import {
+  addRefinement,
+  excludedPatterns,
+  mergeFetchedPatterns,
+  removeRefinement,
+} from '../../../common/log_exploration';
 
 /**
  * Surface-neutral action vocabulary: every user intent the view supports, independent of how it is
- * rendered. A second surface would reuse these names.
+ * rendered. Narrowing is one action for every kind of narrowing, so a new kind needs no new action.
  */
 export type LogExplorationAction =
-  | { type: 'MUTE_PATTERN'; pattern: string }
-  | { type: 'UNMUTE_PATTERN'; pattern: string }
+  | { type: 'ADD_REFINEMENT'; refinement: LogExplorationRefinement }
+  | { type: 'REMOVE_REFINEMENT'; key: string }
   | {
       type: 'SET_TIME_RANGE';
       timeRange: LogExplorationTimeRange;
@@ -27,53 +34,58 @@ export type LogExplorationAction =
       baselineEpoch?: LogExplorationTimeRange;
     }
   | { type: 'SET_BASELINE_EPOCH'; baselineEpoch: LogExplorationTimeRange }
-  | { type: 'FETCH_SUCCEEDED'; result: LogExplorationFetchResult }
+  | { type: 'FETCH_SUCCEEDED'; result: LogExplorationResult }
   | { type: 'FETCH_FAILED'; snapshot: LogExplorationData }
   | { type: 'PERSIST_FAILED'; snapshot: LogExplorationData };
+
+/** The baseline epoch belongs to one lens, so no other lens can carry it. */
+const withBaselineEpoch = (
+  view: LogExplorationView,
+  baselineEpoch: LogExplorationTimeRange
+): LogExplorationView => (view.type === 'volume-comparison' ? { ...view, baselineEpoch } : view);
 
 export const logExplorationReducer = (
   state: LogExplorationData,
   action: LogExplorationAction
 ): LogExplorationData => {
   switch (action.type) {
-    case 'MUTE_PATTERN':
-      return state.mutedPatterns.includes(action.pattern)
-        ? state
-        : { ...state, mutedPatterns: [...state.mutedPatterns, action.pattern] };
-    case 'UNMUTE_PATTERN':
-      return {
-        ...state,
-        mutedPatterns: state.mutedPatterns.filter((pattern) => pattern !== action.pattern),
-      };
+    case 'ADD_REFINEMENT': {
+      const refinements = addRefinement(state.refinements, action.refinement);
+      return refinements === state.refinements ? state : { ...state, refinements };
+    }
+    case 'REMOVE_REFINEMENT':
+      return { ...state, refinements: removeRefinement(state.refinements, action.key) };
     case 'SET_TIME_RANGE':
       return {
         ...state,
-        timeRange: action.timeRange,
-        ...(action.baselineEpoch ? { baselineEpoch: action.baselineEpoch } : {}),
+        source: { ...state.source, timeRange: action.timeRange },
+        ...(action.baselineEpoch
+          ? { view: withBaselineEpoch(state.view, action.baselineEpoch) }
+          : {}),
       };
     case 'SET_BASELINE_EPOCH':
-      return { ...state, baselineEpoch: action.baselineEpoch };
+      return { ...state, view: withBaselineEpoch(state.view, action.baselineEpoch) };
     case 'FETCH_SUCCEEDED':
       return {
         ...state,
-        ...(action.result.patterns
-          ? {
-              patterns: mergeFetchedPatterns(
-                state.patterns,
-                action.result.patterns,
-                state.mutedPatterns
-              ),
-            }
-          : {}),
-        ...(action.result.histogram ? { histogram: action.result.histogram } : {}),
-        generatedAt: action.result.generatedAt,
+        result:
+          action.result.type === 'pattern-table'
+            ? {
+                ...action.result,
+                patterns: mergeFetchedPatterns(
+                  state.result.type === 'pattern-table' ? state.result.patterns : undefined,
+                  action.result.patterns,
+                  excludedPatterns(state.refinements)
+                ),
+              }
+            : action.result,
       };
-    // Only the window rolls back: anything the user did while the fetch was in flight stands.
+    // Only the window and the lens roll back: anything the user did while the fetch was in flight stands.
     case 'FETCH_FAILED':
       return {
         ...state,
-        timeRange: action.snapshot.timeRange,
-        baselineEpoch: action.snapshot.baselineEpoch,
+        source: { ...state.source, timeRange: action.snapshot.source.timeRange },
+        view: action.snapshot.view,
       };
     case 'PERSIST_FAILED':
       return action.snapshot;
@@ -86,17 +98,22 @@ export const logExplorationReducer = (
  */
 export const MUTE_FETCH_DEBOUNCE_MS = 300;
 
-/** Each of these needs data the view does not have: a new window, or a pattern the last query excluded. */
+/**
+ * Each of these needs data the view does not have: a new window, a new lens parameter, a narrowing
+ * that cuts rows the last query returned, or a removal whose rows that query excluded.
+ */
 const requiresImmediateFetch = (action: LogExplorationAction) =>
   action.type === 'SET_TIME_RANGE' ||
   action.type === 'SET_BASELINE_EPOCH' ||
-  action.type === 'UNMUTE_PATTERN';
+  action.type === 'REMOVE_REFINEMENT' ||
+  (action.type === 'ADD_REFINEMENT' && action.refinement.kind !== 'exclude-pattern');
 
 /**
- * The row hides locally before any I/O, so mute still reads as instant; the refetch behind it
- * backfills the top-N, which matters more now that the table shows only `MAX_PATTERNS` rows.
+ * The row hides locally before any I/O, so muting still reads as instant; the refetch behind it
+ * backfills the top-N, which matters now that the table shows only `MAX_PATTERNS` rows.
  */
-const requiresDebouncedFetch = (action: LogExplorationAction) => action.type === 'MUTE_PATTERN';
+const requiresDebouncedFetch = (action: LogExplorationAction) =>
+  action.type === 'ADD_REFINEMENT' && action.refinement.kind === 'exclude-pattern';
 
 const isAbortError = (error: unknown) => error instanceof Error && error.name === 'AbortError';
 
@@ -108,7 +125,7 @@ interface UseLogExplorationStateArgs {
   fetchView?: (args: {
     data: LogExplorationData;
     signal: AbortSignal;
-  }) => Promise<LogExplorationFetchResult>;
+  }) => Promise<LogExplorationResult>;
   onPersistError?: (error: Error) => void;
 }
 
@@ -216,7 +233,7 @@ export const useLogExplorationState = ({
           rawDispatch(action);
           setIsFetching(false);
           setFetchError(toError(error).message);
-          // A mute is written only by its own refetch, so a failed one still has to persist it.
+          // An excluded pattern is written only by its own refetch, so a failed one still has to persist it.
           if (persistOnFailure) {
             persist(dataRef.current);
           }
@@ -249,7 +266,7 @@ export const useLogExplorationState = ({
     [cancelDebouncedFetch, fetchView, persist, runFetch]
   );
 
-  /** Fires a waiting mute refetch now, so nothing can observe a mute that has not been written. */
+  /** Fires a waiting refinement refetch now, so nothing can observe a refinement that has not been written. */
   const flushDebouncedFetch = useCallback(() => {
     if (debounceTimerRef.current === undefined) {
       return;

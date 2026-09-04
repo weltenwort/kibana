@@ -26,14 +26,20 @@ import {
   getLoopState,
   injectAttachmentIds,
   readCurrentData,
-  resolveRange,
+  resolveSource,
 } from '../../attachments/emit_log_exploration_attachment';
-import { MAX_PATTERNS, mergeFetchedPatterns } from '../../../common/log_exploration';
+import {
+  excludedPatterns,
+  MAX_PATTERNS,
+  mergeFetchedPatterns,
+} from '../../../common/log_exploration';
+import { applyAgentKqlFilter } from '../../utils/log_exploration_refinements';
 import { getLogPatterns } from './handler';
 
 export const OBSERVABILITY_GET_LOG_PATTERNS_TOOL_ID = 'observability.get_log_patterns';
 
 const DEFAULT_TIME_RANGE = { start: 'now-1h', end: 'now' };
+const DEFAULT_MESSAGE_FIELD = 'message';
 
 const getLogPatternsSchema = z.object({
   start: z
@@ -59,14 +65,16 @@ const getLogPatternsSchema = z.object({
     .string()
     .max(MAX_KQL_FILTER_LENGTH)
     .describe(
-      "A KQL query to filter the log documents. Examples: 'log.level: error', 'service.name: \"my-service\"'."
+      "A KQL query to filter the log documents. Examples: 'log.level: error', 'service.name: \"my-service\"'. It is shown to the user as a removable filter and stays applied until you pass a different one or they remove it, so omit it to keep the current filter."
     )
     .optional(),
   messageField: z
     .string()
     .max(MAX_SHORT_STRING_LENGTH)
-    .default('message')
-    .describe('The unstructured text field to categorize logs on.'),
+    .describe(
+      'The unstructured text field to categorize logs on. Omit to keep the field already in use.'
+    )
+    .optional(),
 });
 
 export function createGetLogPatternsTool({
@@ -108,38 +116,40 @@ The query is LIMIT ${MAX_PATTERNS}, so the table is a top-N cut by document coun
     handler: async ({ start, end, index, kqlFilter, messageField }, { esClient, attachments }) => {
       try {
         const logIndexPatterns = await getLogsIndices({ core, logger });
-        const resolvedIndex = index || logIndexPatterns.join(',');
 
-        // The user's own filter state wins unless the model explicitly asked for a new range.
+        // The user's own filter state wins unless the model explicitly asked for something else.
         const loopState = getLoopState(attachments);
-        const timeRange = resolveRange({ start, end }, loopState.timeRange, DEFAULT_TIME_RANGE);
-        const mutedPatterns = loopState.mutedPatterns ?? [];
+        const source = resolveSource({ start, end, index, messageField }, loopState.source, {
+          index: logIndexPatterns.join(','),
+          messageField: DEFAULT_MESSAGE_FIELD,
+          timeRange: DEFAULT_TIME_RANGE,
+        });
+        const refinements = applyAgentKqlFilter(loopState.refinements ?? [], kqlFilter);
 
         const fetched = await getLogPatterns({
           esClient,
-          start: timeRange.start,
-          end: timeRange.end,
-          index: resolvedIndex,
-          kqlFilter,
-          messageField,
-          mutedPatterns,
+          start: source.timeRange.start,
+          end: source.timeRange.end,
+          index: source.index,
+          messageField: source.messageField,
+          refinements,
         });
+        const current = readCurrentData(attachments);
         const patterns = mergeFetchedPatterns(
-          readCurrentData(attachments)?.patterns,
+          current?.result.type === 'pattern-table' ? current.result.patterns : undefined,
           fetched,
-          mutedPatterns
+          excludedPatterns(refinements)
         );
 
         const attachmentId = await emitLogExplorationAttachment(attachments, {
-          type: 'pattern-table',
-          index: resolvedIndex,
-          messageField,
-          kqlFilter,
-          timeRange,
-          mutedPatterns,
-          baselineEpoch: loopState.baselineEpoch,
-          patterns,
-          generatedAt: new Date().toISOString(),
+          source,
+          refinements,
+          view: { type: 'pattern-table' },
+          result: {
+            type: 'pattern-table',
+            patterns,
+            generatedAt: new Date().toISOString(),
+          },
         });
 
         return injectAttachmentIds(
@@ -149,8 +159,8 @@ The query is LIMIT ${MAX_PATTERNS}, so the table is a top-N cut by document coun
                 type: ToolResultType.other,
                 data: {
                   patternCount: fetched.length,
-                  mutedCount: mutedPatterns.length,
-                  timeRange,
+                  refinementCount: refinements.length,
+                  timeRange: source.timeRange,
                 },
               },
             ],

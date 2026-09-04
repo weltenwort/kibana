@@ -6,13 +6,10 @@
  */
 
 import type { HttpStart } from '@kbn/core/public';
-import dateMath from '@kbn/datemath';
 import type {
   LogExplorationData,
-  LogExplorationFetchResult,
-  LogPatternsRequest,
-  LogVolumeComparisonRequest,
-  LogExplorationTimeRange,
+  LogExplorationRequest,
+  LogExplorationResult,
 } from '../../../common/log_exploration';
 import {
   LOG_PATTERNS_API_PATH,
@@ -22,49 +19,24 @@ import {
 export type FetchLogExplorationView = (args: {
   data: LogExplorationData;
   signal: AbortSignal;
-}) => Promise<LogExplorationFetchResult>;
+}) => Promise<LogExplorationResult>;
 
-/** Falls back to the window immediately before the current one, matching the tool's own default. */
-const resolveBaselineEpoch = (data: LogExplorationData): LogExplorationTimeRange => {
-  if (data.baselineEpoch) {
-    return data.baselineEpoch;
-  }
-  const startMs = dateMath.parse(data.timeRange.start)?.valueOf();
-  const endMs = dateMath.parse(data.timeRange.end, { roundUp: true })?.valueOf();
-  if (startMs === undefined || endMs === undefined) {
-    throw new Error(`Could not resolve the time range "${data.timeRange.start}"`);
-  }
-  return { start: new Date(startMs - (endMs - startMs)).toISOString(), end: data.timeRange.start };
+const PATH_BY_VIEW_TYPE: Record<LogExplorationData['view']['type'], string> = {
+  'pattern-table': LOG_PATTERNS_API_PATH,
+  'volume-comparison': LOG_VOLUME_COMPARISON_API_PATH,
 };
 
 /**
- * Re-runs the query behind the current view against the window the user just picked. The routes are
- * stateless, so the caller writes the returned data back into the attachment itself.
+ * Re-runs the query behind the current view against the state the user just changed. The request is
+ * the state minus its cache and the response is that cache, so this only has to pick the route.
  */
 export const createFetchLogExplorationView =
   (http: HttpStart): FetchLogExplorationView =>
   async ({ data, signal }) => {
-    if (data.type === 'histogram') {
-      const body: LogVolumeComparisonRequest = {
-        index: data.index,
-        kqlFilter: data.kqlFilter,
-        timeRange: data.timeRange,
-        baselineEpoch: resolveBaselineEpoch(data),
-      };
-      return http.post<LogExplorationFetchResult>(LOG_VOLUME_COMPARISON_API_PATH, {
-        body: JSON.stringify(body),
-        signal,
-      });
-    }
+    const { source, refinements, view } = data;
+    const body: LogExplorationRequest = { source, refinements, view };
 
-    const body: LogPatternsRequest = {
-      index: data.index,
-      messageField: data.messageField,
-      kqlFilter: data.kqlFilter,
-      timeRange: data.timeRange,
-      mutedPatterns: data.mutedPatterns,
-    };
-    return http.post<LogExplorationFetchResult>(LOG_PATTERNS_API_PATH, {
+    return http.post<LogExplorationResult>(PATH_BY_VIEW_TYPE[view.type], {
       body: JSON.stringify(body),
       signal,
     });

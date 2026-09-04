@@ -39,25 +39,27 @@ export const BaselineHistogram: React.FC<BaselineHistogramProps> = ({
   isReadOnly,
 }) => {
   const chartBaseTheme = charts.theme.useChartsBaseTheme();
+  const histogram = data.result.type === 'volume-comparison' ? data.result.histogram : undefined;
 
   const series = useMemo(() => {
-    if (!data.histogram) {
+    if (!histogram) {
       return [];
     }
-    const { current, baseline, startMs, intervalMs } = data.histogram;
+    const { current, baseline, startMs, intervalMs } = histogram;
     const length = Math.max(current.length, baseline.length);
     return Array.from({ length }, (_, index) => ({
       x: startMs + index * intervalMs,
       current: current[index] ?? 0,
       baseline: baseline[index] ?? 0,
     }));
-  }, [data.histogram]);
+  }, [histogram]);
 
   const selectedOffset = useMemo(() => {
-    const rangeStart = dateMath.parse(data.timeRange.start)?.valueOf();
-    const baselineStart = data.baselineEpoch
-      ? dateMath.parse(data.baselineEpoch.start)?.valueOf()
-      : undefined;
+    const rangeStart = dateMath.parse(data.source.timeRange.start)?.valueOf();
+    const baselineStart =
+      data.view.type === 'volume-comparison'
+        ? dateMath.parse(data.view.baselineEpoch.start)?.valueOf()
+        : undefined;
     if (rangeStart === undefined || baselineStart === undefined) {
       return CUSTOM_OFFSET;
     }
@@ -67,7 +69,7 @@ export const BaselineHistogram: React.FC<BaselineHistogramProps> = ({
       (option) => Math.abs(Number(option.value) - gap) < 60 * 1000
     );
     return match?.value ?? CUSTOM_OFFSET;
-  }, [data.timeRange.start, data.baselineEpoch]);
+  }, [data.source.timeRange.start, data.view]);
 
   const options = useMemo(
     () =>
@@ -86,7 +88,7 @@ export const BaselineHistogram: React.FC<BaselineHistogramProps> = ({
     [selectedOffset]
   );
 
-  if (!data.histogram) {
+  if (!histogram) {
     return (
       <EuiText size="s" color="subdued">
         {i18n.translate('xpack.observabilityAgentBuilder.logExploration.noHistogram', {
@@ -113,8 +115,10 @@ export const BaselineHistogram: React.FC<BaselineHistogramProps> = ({
             value={selectedOffset}
             onChange={(event) => {
               const offsetMs = Number(event.target.value);
-              const rangeStart = dateMath.parse(data.timeRange.start)?.valueOf();
-              const rangeEnd = dateMath.parse(data.timeRange.end, { roundUp: true })?.valueOf();
+              const rangeStart = dateMath.parse(data.source.timeRange.start)?.valueOf();
+              const rangeEnd = dateMath
+                .parse(data.source.timeRange.end, { roundUp: true })
+                ?.valueOf();
               if (
                 !Number.isFinite(offsetMs) ||
                 rangeStart === undefined ||

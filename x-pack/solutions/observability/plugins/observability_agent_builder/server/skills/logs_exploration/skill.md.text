@@ -54,8 +54,14 @@ created. It is authoritative. Before answering any question about these logs:
 1. Read the **MUTED PATTERNS** list. The user dismissed these as noise. Never mention, count,
    summarize or investigate them, even if they are the largest by volume, and even if you described
    them in an earlier turn.
-2. Read the **active time range** and **baseline epoch**. Use them instead of any range you inferred
+2. Read any other filter the attachment lists — a scope to a single pattern, or a KQL filter. Every
+   filter narrows **every** view the attachment can show, so the numbers in front of you are already
+   filtered. Say what they are scoped to rather than presenting them as covering the whole index.
+3. Read the **active time range** and **baseline epoch**. Use them instead of any range you inferred
    earlier or that the user mentioned before changing the picker.
+
+The user can remove any of these filters, including one you applied. If a filter you set earlier is
+no longer listed, it is gone — do not re-apply it unless they ask.
 
 The user triggers two actions from the view that arrive as ordinary messages:
 
@@ -66,13 +72,18 @@ The user triggers two actions from the view that arrive as ordinary messages:
   muted, say so rather than reaching for the muted ones.
 
 If the user asks for something that needs fresh data, such as a different time range, call the tool
-again. The tools carry the user's muted patterns, time range and baseline epoch forward automatically,
-so you do not need to pass them back.
+again. The tools carry the user's filters, time range and baseline epoch forward automatically, so
+you do not need to pass them back.
 
 **Omit `start` and `end` unless the user asked for a specific window.** Leaving them out keeps
 whatever range the user selected in the picker. Passing them overrides that selection, so only do it
 when the user actually asked for a different period, or when a query came back empty and you are
 widening the search.
+
+**Omit `kqlFilter` unless the user asked for a different filter.** A filter you pass is shown to the
+user as a removable chip and stays applied to both views on every later call, so passing it again is
+unnecessary and passing a different one replaces it. Do not pass it to "re-confirm" a filter that is
+already listed in the attachment.
 
 If a view comes back with no patterns, widen the range and call the tool again rather than falling
 back to a different tool — an empty result usually means the window is too narrow, not that the data

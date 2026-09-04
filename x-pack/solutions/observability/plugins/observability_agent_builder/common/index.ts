@@ -23,16 +23,21 @@ export {
 export {
   logExplorationDataSchema,
   MAX_PATTERNS,
-  MAX_MUTED_PATTERNS,
+  MAX_EXCLUDED_PATTERNS,
+  MAX_REFINEMENTS,
   MAX_SPARKLINE_BUCKETS,
   MAX_HISTOGRAM_BUCKETS,
 } from './log_exploration';
 export type {
   LogExplorationData,
   LogExplorationPattern,
+  LogExplorationRefinement,
+  LogExplorationResult,
+  LogExplorationSource,
   LogExplorationTimeRange,
   LogExplorationHistogram,
   LogExplorationLoopState,
+  LogExplorationView,
 } from './log_exploration';
 
 export type { ConnectorInfo } from './types';

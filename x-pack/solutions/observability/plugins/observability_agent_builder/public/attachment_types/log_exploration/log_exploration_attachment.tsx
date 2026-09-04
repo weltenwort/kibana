@@ -143,7 +143,7 @@ export const LogExplorationAttachment: React.FC<LogExplorationAttachmentProps> =
         </EuiFlexItem>
       )}
       <EuiFlexItem grow={false} aria-busy={isFetching} css={{ opacity: isFetching ? 0.5 : 1 }}>
-        {data.type === 'pattern-table' ? (
+        {data.view.type === 'pattern-table' ? (
           <PatternTable
             data={data}
             dispatch={dispatch}
@@ -166,11 +166,8 @@ export const LogExplorationAttachment: React.FC<LogExplorationAttachmentProps> =
 };
 
 const EMPTY_DATA: LogExplorationData = {
-  type: 'pattern-table',
-  index: '',
-  messageField: 'message',
-  timeRange: { start: 'now-1h', end: 'now' },
-  mutedPatterns: [],
-  patterns: [],
-  generatedAt: '',
+  source: { index: '', messageField: 'message', timeRange: { start: 'now-1h', end: 'now' } },
+  refinements: [],
+  view: { type: 'pattern-table' },
+  result: { type: 'pattern-table', patterns: [], generatedAt: '' },
 };

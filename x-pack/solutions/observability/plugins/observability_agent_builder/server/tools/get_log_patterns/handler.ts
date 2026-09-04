@@ -6,12 +6,14 @@
  */
 
 import type { IScopedClusterClient } from '@kbn/core/server';
-import type { QueryDslQueryContainer } from '@elastic/elasticsearch/lib/api/types';
-import { extractCategorizeTokens } from '@kbn/esql-utils';
-import type { LogExplorationPattern } from '../../../common/log_exploration';
+import type {
+  LogExplorationPattern,
+  LogExplorationRefinement,
+} from '../../../common/log_exploration';
 import { MAX_PATTERNS, MAX_SPARKLINE_BUCKETS } from '../../../common/log_exploration';
 import { parseDatemath } from '../../utils/time';
 import { assertSafeFieldName, assertSafeIndexPattern } from '../../utils/esql';
+import { buildRefinementFilter } from '../../utils/log_exploration_refinements';
 
 const columnIndex = (columns: Array<{ name: string }>, name: string) =>
   columns.findIndex((column) => column.name === name);
@@ -25,66 +27,20 @@ const toSparkline = (value: unknown): number[] => {
     .map((entry) => (typeof entry === 'number' ? entry : 0));
 };
 
-/**
- * KQL is not an ES|QL construct and ES|QL restricts full-text functions under NOT, so both the
- * user's filter and the muted patterns ride along as a query DSL filter instead. Muting is inverted
- * from the token match Discover's patterns profile uses to drill into a category.
- */
-const buildFilter = ({
-  kqlFilter,
-  messageField,
-  mutedPatterns,
-}: {
-  kqlFilter?: string;
-  messageField: string;
-  mutedPatterns: string[];
-}): QueryDslQueryContainer | undefined => {
-  const mustNot = mutedPatterns.flatMap((pattern) => {
-    const tokens = extractCategorizeTokens(pattern).join(' ').trim();
-    return tokens
-      ? [
-          {
-            match: {
-              [messageField]: {
-                query: tokens,
-                operator: 'and' as const,
-                fuzziness: 0,
-                auto_generate_synonyms_phrase_query: false,
-              },
-            },
-          },
-        ]
-      : [];
-  });
-
-  if (!kqlFilter && mustNot.length === 0) {
-    return undefined;
-  }
-
-  return {
-    bool: {
-      ...(kqlFilter ? { filter: [{ query_string: { query: kqlFilter } }] } : {}),
-      ...(mustNot.length > 0 ? { must_not: mustNot } : {}),
-    },
-  };
-};
-
 export async function getLogPatterns({
   esClient,
   start,
   end,
   index,
-  kqlFilter,
   messageField,
-  mutedPatterns = [],
+  refinements = [],
 }: {
   esClient: IScopedClusterClient;
   start: string;
   end: string;
   index: string;
-  kqlFilter?: string;
   messageField: string;
-  mutedPatterns?: string[];
+  refinements?: LogExplorationRefinement[];
 }): Promise<LogExplorationPattern[]> {
   const startMs = parseDatemath(start);
   const endMs = parseDatemath(end, { roundUp: true });
@@ -99,7 +55,7 @@ export async function getLogPatterns({
     `| LIMIT ${MAX_PATTERNS}`,
   ].join('\n');
 
-  const filter = buildFilter({ kqlFilter, messageField: field, mutedPatterns });
+  const filter = buildRefinementFilter({ refinements, messageField: field });
 
   const response = await esClient.asCurrentUser.esql.query({
     query,

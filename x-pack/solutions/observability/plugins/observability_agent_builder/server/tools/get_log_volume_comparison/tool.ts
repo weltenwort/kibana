@@ -27,13 +27,16 @@ import {
   getLoopState,
   injectAttachmentIds,
   resolveRange,
+  resolveSource,
 } from '../../attachments/emit_log_exploration_attachment';
+import { applyAgentKqlFilter } from '../../utils/log_exploration_refinements';
 import { getLogVolumeComparison } from './handler';
 
 export const OBSERVABILITY_GET_LOG_VOLUME_COMPARISON_TOOL_ID =
   'observability.get_log_volume_comparison';
 
 const DEFAULT_TIME_RANGE = { start: 'now-1h', end: 'now' };
+const DEFAULT_MESSAGE_FIELD = 'message';
 
 const getLogVolumeComparisonSchema = z.object({
   start: z
@@ -70,7 +73,9 @@ const getLogVolumeComparisonSchema = z.object({
   kqlFilter: z
     .string()
     .max(MAX_KQL_FILTER_LENGTH)
-    .describe('A KQL query to filter the log documents.')
+    .describe(
+      'A KQL query to filter the log documents. It is shown to the user as a removable filter and stays applied until you pass a different one or they remove it, so omit it to keep the current filter.'
+    )
     .optional(),
 });
 
@@ -114,16 +119,21 @@ Runs two ES|QL BUCKET queries over a shared interval so the epochs are directly 
     ) => {
       try {
         const logIndexPatterns = await getLogsIndices({ core, logger });
-        const resolvedIndex = index || logIndexPatterns.join(',');
 
         const loopState = getLoopState(attachments);
-        const timeRange = resolveRange({ start, end }, loopState.timeRange, DEFAULT_TIME_RANGE);
+        const source = resolveSource({ start, end, index }, loopState.source, {
+          index: logIndexPatterns.join(','),
+          messageField: DEFAULT_MESSAGE_FIELD,
+          timeRange: DEFAULT_TIME_RANGE,
+        });
+        const refinements = applyAgentKqlFilter(loopState.refinements ?? [], kqlFilter);
 
         const durationMs =
-          parseDatemath(timeRange.end, { roundUp: true }) - parseDatemath(timeRange.start);
+          parseDatemath(source.timeRange.end, { roundUp: true }) -
+          parseDatemath(source.timeRange.start);
         const defaultBaseline = {
-          start: new Date(parseDatemath(timeRange.start) - durationMs).toISOString(),
-          end: timeRange.start,
+          start: new Date(parseDatemath(source.timeRange.start) - durationMs).toISOString(),
+          end: source.timeRange.start,
         };
         const baselineEpoch = resolveRange(
           { start: baselineStart, end: baselineEnd },
@@ -133,24 +143,24 @@ Runs two ES|QL BUCKET queries over a shared interval so the epochs are directly 
 
         const histogram = await getLogVolumeComparison({
           esClient,
-          index: resolvedIndex,
-          kqlFilter,
-          start: timeRange.start,
-          end: timeRange.end,
+          index: source.index,
+          messageField: source.messageField,
+          refinements,
+          start: source.timeRange.start,
+          end: source.timeRange.end,
           baselineStart: baselineEpoch.start,
           baselineEnd: baselineEpoch.end,
         });
 
         const attachmentId = await emitLogExplorationAttachment(attachments, {
-          type: 'histogram',
-          index: resolvedIndex,
-          messageField: 'message',
-          kqlFilter,
-          timeRange,
-          mutedPatterns: loopState.mutedPatterns ?? [],
-          baselineEpoch,
-          histogram,
-          generatedAt: new Date().toISOString(),
+          source,
+          refinements,
+          view: { type: 'volume-comparison', baselineEpoch },
+          result: {
+            type: 'volume-comparison',
+            histogram,
+            generatedAt: new Date().toISOString(),
+          },
         });
 
         return injectAttachmentIds(
@@ -159,7 +169,7 @@ Runs two ES|QL BUCKET queries over a shared interval so the epochs are directly 
               {
                 type: ToolResultType.other,
                 data: {
-                  timeRange,
+                  timeRange: source.timeRange,
                   baselineEpoch,
                   bucketCount: histogram.current.length,
                 },

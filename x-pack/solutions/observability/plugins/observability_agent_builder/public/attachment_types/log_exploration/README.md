@@ -1,12 +1,51 @@
 # Log exploration attachment (PoC)
 
 Renders the `observability.log_exploration` attachment as an interactive view the user filters
-directly. Branches on `data.type`: `pattern-table` shows patterns with per-row sparklines, `histogram`
-shows current log volume overlaid on a baseline epoch. One attachment carries both views plus the
-loop state (muted patterns, time range, baseline epoch) so state survives switching between them.
+directly. Branches on `data.view.type`: `pattern-table` shows patterns with per-row sparklines,
+`volume-comparison` shows current log volume overlaid on a baseline epoch. One attachment carries
+both views, so state survives switching between them.
 
 **This is a proof of concept.** It exists to answer whether Agent Chat can host a human-steered log
 exploration loop, not to ship. The caveats below are deliberate.
+
+## The payload is a journey, not a bag of fields
+
+```
+{ source, refinements[], view, result }
+```
+
+- **`source`** — what is being explored: index, message field, time range. Survives a refinement and
+  a change of lens.
+- **`refinements`** — the narrowing decisions, as a discriminated union over `exclude-pattern`
+  (muting), `only-pattern` (scoping) and `kql`. Each carries `origin: 'user' | 'agent'`, for
+  labelling only — the user may remove one the agent applied.
+- **`view`** — the lens and its own parameters. `baselineEpoch` lives here, so it is lost on a lens
+  switch; that is accepted.
+- **`result`** — the answer to the last query, keyed to `view.type`. Disposable, and nearly all the
+  bytes in a ~16 KB write.
+
+Three things follow, and they are the reason for the shape:
+
+- **One server translation.** `server/utils/log_exploration_refinements.ts` maps kinds to DSL
+  clauses — `exclude-pattern` to `must_not`, `only-pattern` to the identical clause under `filter`.
+  Both query handlers call it, so a narrowing cannot reach one lens and miss another. It previously
+  did: `getLogVolumeComparison` took only `kqlFilter` and never received muted patterns, so muting
+  had never affected the volume chart.
+- **One chip row.** `exploration_controls.tsx` renders `refinements` through an exhaustive switch, so
+  a new kind is a compile error until it has a label, and is removable by construction.
+- **The refetch request is the state minus `result`, and the response is exactly `result`.** One
+  request schema (`logExplorationRequestSchema = logExplorationDataSchema.omit({ result: true })`)
+  replaces two hand-written ones that had already drifted apart.
+
+`format()` still writes a hand-written sentence per kind despite the uniform storage. The muting
+wording in particular — "never mention, summarize, count or investigate" — is what makes the
+Summarize criterion pass, and is not worth flattening into a generic list of narrowings.
+
+Journey _history_ is deliberately not modelled: the attachment version chain already is the journey.
+The payload describes the current position only.
+
+**Breaking change.** There is no normalising read for the old flat payload. Conversations created
+before this change show the invalid-payload callout; start a new one.
 
 ## Local edits to other teams' code
 
@@ -112,31 +151,34 @@ awaits the in-flight refetch first, because a refetch persists only once its dat
 Moving the window has to change the data, not just the label, or the view misrepresents itself. Two
 internal routes — `POST /internal/observability_agent_builder/log_exploration/{patterns,volume_comparison}`
 — re-run the same query handlers the tools use, so there is one query implementation rather than two.
-They are stateless: the renderer already holds every parameter, and writes the new window and its
-data back in a single `updateContent` call once the data lands. Persisting the window first would
-leave the attachment describing a range whose table still belongs to the previous one.
+Both take the attachment state minus its `result` and return exactly that `result`, so a request
+cannot describe a narrowing whose answer then ignores it. They are stateless: the renderer already
+holds every parameter, and writes the returned data back in a single `updateContent` call once it
+lands. Persisting the window first would leave the attachment describing a range whose table still
+belongs to the previous one.
 
 Which interactions refetch, and why:
 
-| Interaction    | Refetches      | Reason                                                                        |
-| -------------- | -------------- | ----------------------------------------------------------------------------- |
-| Time range     | yes            | Every number in the view belongs to the window                                |
-| Baseline epoch | yes            | The baseline series is queried per epoch                                      |
-| Unmute         | yes            | The query excluded the pattern, so its retained count is from an older window |
-| Mute           | yes, debounced | Only `MAX_PATTERNS` rows are shown, so the row below the cut has to move up   |
+| Interaction            | Refetches      | Reason                                                                      |
+| ---------------------- | -------------- | --------------------------------------------------------------------------- |
+| Time range             | yes            | Every number in the view belongs to the window                              |
+| Baseline epoch         | yes            | The baseline series is queried per epoch                                    |
+| Removing a refinement  | yes            | The query narrowed those rows away, so any retained count is from before    |
+| Adding a non-exclusion | yes            | It cuts rows the last query returned                                        |
+| Excluding a pattern    | yes, debounced | Only `MAX_PATTERNS` rows are shown, so the row below the cut has to move up |
 
-Mute is the one debounced case. The query is `LIMIT 8`, so muting leaves a visibly short table until
-the top-N backfills, which is why it now refetches rather than only hiding the row. The row still
+Excluding is the one debounced case. The query is `LIMIT 8`, so muting leaves a visibly short table
+until the top-N backfills, which is why it refetches rather than only hiding the row. The row still
 disappears locally before any I/O, so the interaction stays instant; the query behind it is delayed by
 `MUTE_FETCH_DEBOUNCE_MS` so that clicking down a list of patterns costs one query and one attachment
-version instead of one of each per click. The query pushes muted patterns down as a `must_not` DSL
-filter so the top-N backfills, and the client keeps the previously seen entry for every muted pattern
-so unmute has something to show while its refetch is in flight.
+version instead of one of each per click. The query pushes exclusions down as a `must_not` DSL filter
+so the top-N backfills, and the client keeps the previously seen entry for every excluded pattern so
+the chip has something to restore while its refetch is in flight.
 
-A pending mute refetch is a write that has not happened yet, so `flushPendingWrites` fires it
+A pending exclusion refetch is a write that has not happened yet, so `flushPendingWrites` fires it
 immediately rather than waiting out the timer — otherwise an agent turn started right after a mute
-reads state the server has never seen. For the same reason a failed mute refetch still persists: mute
-is no longer written by anything else, so dropping the write would lose it on the next remount.
+reads state the server has never seen. For the same reason a failed one still persists: nothing else
+writes the exclusion, so dropping the write would lose it on the next remount.
 
 Ordering and failure: each refetch carries a sequence number and aborts its predecessor, so the latest
 interaction wins regardless of response order. A failed refetch rolls back the **window only** —
@@ -151,8 +193,9 @@ anything the user did while it was in flight stands — and surfaces a callout, 
 - **No canvas.** `renderCanvasContent` is not implemented, so `openCanvas` is never offered and
   `canvas_flyout.tsx` was left untouched. A canvas variant would need the contract additions threaded
   there too.
-- **A retained muted pattern shows a stale count** until its refetch lands, because it is kept from
-  the payload rather than re-queried. Unmuting refetches immediately, so the window is short.
+- **A retained excluded pattern shows a stale count** until its refetch lands, because it is kept from
+  the payload rather than re-queried. Removing the refinement refetches immediately, so the window is
+  short.
 - **`maxContentLength` on `AttachmentTypeDefinition` is declared but never enforced** by the framework.
   All payload bounds live in the zod schema in `common/log_exploration.ts` instead.
 - **Silent disappearance.** `render_attachment_plugin.tsx` returns `null` with no diagnostic when the
@@ -162,5 +205,5 @@ anything the user did while it was in flight stands — and surfaces a callout, 
 ## Out of scope
 
 Production quality, visual polish, MCP App parity, persistence beyond the conversation, permissions,
-and the remaining capabilities in the log exploration spec. Muting is view-only; it is not pushed down
-into the ES|QL query.
+and the remaining capabilities in the log exploration spec. The `kql` refinement kind has no input to
+create one — the agent still sets it; the view only shows and removes it.

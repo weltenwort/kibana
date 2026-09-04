@@ -9,6 +9,7 @@ import type { ToolHandlerContext } from '@kbn/agent-builder-server';
 import type {
   LogExplorationData,
   LogExplorationLoopState,
+  LogExplorationSource,
   LogExplorationTimeRange,
 } from '../../common/log_exploration';
 import { OBSERVABILITY_LOG_EXPLORATION_ATTACHMENT_TYPE_ID } from '../../common';
@@ -29,7 +30,8 @@ export const readCurrentData = (attachments: Attachments): LogExplorationData | 
 };
 
 /**
- * Loop state belongs to the user, so a tool re-running a query must never reset it.
+ * Loop state belongs to the user, so a tool re-running a query must never reset it. `baselineEpoch`
+ * is a parameter of one lens, so it survives only while that lens does.
  */
 export const getLoopState = (attachments: Attachments): Partial<LogExplorationLoopState> => {
   const current = readCurrentData(attachments);
@@ -37,9 +39,10 @@ export const getLoopState = (attachments: Attachments): Partial<LogExplorationLo
     return {};
   }
   return {
-    mutedPatterns: current.mutedPatterns,
-    timeRange: current.timeRange,
-    baselineEpoch: current.baselineEpoch,
+    source: current.source,
+    refinements: current.refinements,
+    baselineEpoch:
+      current.view.type === 'volume-comparison' ? current.view.baselineEpoch : undefined,
   };
 };
 
@@ -62,6 +65,17 @@ export const resolveRange = (
   return current ?? fallback;
 };
 
+/** Same precedence as `resolveRange`, applied to the whole subject rather than just its window. */
+export const resolveSource = (
+  requested: { index?: string; messageField?: string; start?: string; end?: string },
+  current: LogExplorationSource | undefined,
+  fallback: LogExplorationSource
+): LogExplorationSource => ({
+  index: requested.index ?? current?.index ?? fallback.index,
+  messageField: requested.messageField ?? current?.messageField ?? fallback.messageField,
+  timeRange: resolveRange(requested, current?.timeRange, fallback.timeRange),
+});
+
 /**
  * Emits the single log exploration attachment for the conversation: creates it on the first tool
  * call, updates it in place on every later one so both views share one id and one loop state.
@@ -75,7 +89,7 @@ export const emitLogExplorationAttachment = async (
     .find((a) => a.type === OBSERVABILITY_LOG_EXPLORATION_ATTACHMENT_TYPE_ID);
 
   const description =
-    data.type === 'pattern-table' ? 'Log patterns' : 'Log volume vs. baseline epoch';
+    data.view.type === 'pattern-table' ? 'Log patterns' : 'Log volume vs. baseline epoch';
 
   if (existing) {
     await attachments.update(existing.id, { data, description });
