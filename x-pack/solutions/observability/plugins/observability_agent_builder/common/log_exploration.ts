@@ -172,9 +172,15 @@ export const addRefinement = (
   if (refinements.some((existing) => refinementKey(existing) === key)) {
     return refinements;
   }
+  // Two scopes AND to nothing, since a document belongs to one category, so scoping replaces rather
+  // than accumulates. Reachable by clicking a second row before the first scope narrows the table.
+  const base =
+    refinement.kind === 'only-pattern'
+      ? refinements.filter((existing) => existing.kind !== 'only-pattern')
+      : refinements;
   // The schema bound is enforced here rather than at write time, where exceeding it would reject
   // the whole payload and leave the view unrenderable.
-  return refinements.length >= MAX_REFINEMENTS ? refinements : [...refinements, refinement];
+  return base.length >= MAX_REFINEMENTS ? base : [...base, refinement];
 };
 
 export const removeRefinement = (

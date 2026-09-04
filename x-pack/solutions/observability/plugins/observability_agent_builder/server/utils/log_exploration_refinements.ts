@@ -77,7 +77,11 @@ export const buildRefinementFilter = ({
 
   return {
     bool: {
-      ...(filter.length > 0 ? { filter } : {}),
+      // `match_all` is load-bearing, not decoration. Measured on Elasticsearch 9.6.0: a bool with
+      // only `must_not` is silently ignored when ES|QL pushes it down alongside a `WHERE @timestamp`
+      // range and `STATS ... BY BUCKET(@timestamp, ...)` — the histogram returned the unfiltered
+      // count. Any positive clause restores it, and every other query shape tested was unaffected.
+      filter: filter.length > 0 ? filter : [{ match_all: {} }],
       ...(mustNot.length > 0 ? { must_not: mustNot } : {}),
     },
   };

@@ -13,6 +13,7 @@ import {
   logExplorationReducer,
   useLogExplorationState,
 } from './use_log_exploration_state';
+import type { LogExplorationAction } from './use_log_exploration_state';
 
 const pattern = (name: string, count: number) => ({ pattern: name, count, sparkline: [] });
 
@@ -56,6 +57,20 @@ describe('logExplorationReducer', () => {
       });
 
       expect(keysOf(next)).toEqual(['exclude-pattern:noisy', 'only-pattern:noisy']);
+    });
+
+    it('replaces an existing scope rather than ANDing two that can never both match', () => {
+      const scoped = logExplorationReducer(baseData, {
+        type: 'ADD_REFINEMENT',
+        refinement: { kind: 'only-pattern', origin: 'user', pattern: 'first' },
+      });
+
+      const rescoped = logExplorationReducer(scoped, {
+        type: 'ADD_REFINEMENT',
+        refinement: { kind: 'only-pattern', origin: 'user', pattern: 'second' },
+      });
+
+      expect(keysOf(rescoped)).toEqual(['exclude-pattern:noisy', 'only-pattern:second']);
     });
   });
 
@@ -235,5 +250,46 @@ describe('useLogExplorationState', () => {
 
     expect(fetchView).toHaveBeenCalledTimes(1);
     expect(keysOf(requestedIn(fetchView.mock.calls[0]))).toEqual([]);
+  });
+
+  it.each([
+    [
+      'a scope whose refetch fails',
+      {
+        type: 'ADD_REFINEMENT',
+        refinement: { kind: 'only-pattern', origin: 'user', pattern: 'p' },
+      },
+      ['exclude-pattern:noisy', 'only-pattern:p'],
+    ],
+    [
+      'a removal whose refetch fails',
+      { type: 'REMOVE_REFINEMENT', key: 'exclude-pattern:noisy' },
+      [],
+    ],
+  ] as Array<[string, LogExplorationAction, string[]]>)(
+    'persists %s, so an agent turn cannot read a server that never heard about it',
+    async (_label, action, expected) => {
+      const { result, updateContent } = setup(jest.fn().mockRejectedValue(new Error('boom')));
+
+      await act(async () => {
+        result.current.dispatch(action);
+      });
+
+      expect(updateContent).toHaveBeenCalledTimes(1);
+      expect(keysOf(writtenIn(updateContent.mock.calls[0]))).toEqual(expected);
+    }
+  );
+
+  it('does not persist a failed range change, which rolls back instead', async () => {
+    const { result, updateContent } = setup(jest.fn().mockRejectedValue(new Error('boom')));
+
+    await act(async () => {
+      result.current.dispatch({
+        type: 'SET_TIME_RANGE',
+        timeRange: { start: 'now-24h', end: 'now' },
+      });
+    });
+
+    expect(updateContent).not.toHaveBeenCalled();
   });
 });

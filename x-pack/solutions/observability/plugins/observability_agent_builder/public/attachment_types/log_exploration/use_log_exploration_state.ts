@@ -115,6 +115,14 @@ const requiresImmediateFetch = (action: LogExplorationAction) =>
 const requiresDebouncedFetch = (action: LogExplorationAction) =>
   action.type === 'ADD_REFINEMENT' && action.refinement.kind === 'exclude-pattern';
 
+/**
+ * `FETCH_FAILED` rolls back the window but keeps refinements, so a refinement's own refetch is the
+ * only thing that ever writes it. Without this a failed fetch leaves it on screen and unsaved, and
+ * an agent turn started next reads a server that never heard about it.
+ */
+const changesRefinements = (action: LogExplorationAction) =>
+  action.type === 'ADD_REFINEMENT' || action.type === 'REMOVE_REFINEMENT';
+
 const isAbortError = (error: unknown) => error instanceof Error && error.name === 'AbortError';
 
 const toError = (error: unknown) => (error instanceof Error ? error : new Error(String(error)));
@@ -289,7 +297,7 @@ export const useLogExplorationState = ({
       if (requiresImmediateFetch(action)) {
         cancelDebouncedFetch();
         debouncedSnapshotRef.current = undefined;
-        runFetch(next, current);
+        runFetch(next, current, { persistOnFailure: changesRefinements(action) });
       } else if (requiresDebouncedFetch(action)) {
         scheduleFetch(next, current);
       }

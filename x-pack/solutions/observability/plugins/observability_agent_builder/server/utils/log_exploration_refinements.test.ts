@@ -25,8 +25,16 @@ describe('buildRefinementFilter', () => {
     });
 
     expect(excluded?.bool?.must_not).toEqual(scoped?.bool?.filter);
-    expect(excluded?.bool?.filter).toBeUndefined();
     expect(scoped?.bool?.must_not).toBeUndefined();
+  });
+
+  it('gives an exclusion-only filter a positive clause, which ES|QL needs to honour it', () => {
+    const excluded = buildRefinementFilter({
+      refinements: [{ kind: 'exclude-pattern', origin: 'user', pattern: 'GET /api/v1/orders 200' }],
+      messageField,
+    });
+
+    expect(excluded?.bool?.filter).toEqual([{ match_all: {} }]);
   });
 
   it('carries a kql refinement as a query_string filter', () => {

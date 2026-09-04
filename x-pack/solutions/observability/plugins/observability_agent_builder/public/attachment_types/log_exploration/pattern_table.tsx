@@ -51,6 +51,7 @@ interface PatternTableProps {
   dispatch: (action: LogExplorationAction) => void;
   charts: ChartsPluginStart;
   onInvestigate: (pattern: string) => void;
+  onCompareBaseline: (pattern: string) => void;
   isReadOnly: boolean;
 }
 
@@ -59,6 +60,7 @@ export const PatternTable: React.FC<PatternTableProps> = ({
   dispatch,
   charts,
   onInvestigate,
+  onCompareBaseline,
   isReadOnly,
 }) => {
   const [visibleColumns, setVisibleColumns] = useState(COLUMNS.map(({ id }) => id));
@@ -90,7 +92,7 @@ export const PatternTable: React.FC<PatternTableProps> = ({
     () => [
       {
         id: 'actions',
-        width: isReadOnly ? 44 : 76,
+        width: isReadOnly ? 44 : 108,
         headerCellRender: () => null,
         rowCellRender: ({ rowIndex }: { rowIndex: number }) => {
           const row = rows[rowIndex];
@@ -99,33 +101,57 @@ export const PatternTable: React.FC<PatternTableProps> = ({
           }
           return (
             <>
+              {/* Comparing writes a refinement before it starts its turn, so unlike Investigate it
+                  is a write and has to go with the other writes on a superseded render. */}
               {!isReadOnly && (
-                <EuiToolTip
-                  content={i18n.translate(
-                    'xpack.observabilityAgentBuilder.logExploration.muteTooltip',
-                    { defaultMessage: 'Mute this pattern. Updates immediately.' }
-                  )}
-                >
-                  <EuiButtonIcon
-                    data-test-subj="observabilityAgentBuilderTrailingControlColumnsButton"
-                    iconType="eyeSlash"
-                    color="text"
-                    aria-label={i18n.translate(
-                      'xpack.observabilityAgentBuilder.logExploration.muteAriaLabel',
-                      { defaultMessage: 'Mute pattern' }
+                <>
+                  <EuiToolTip
+                    content={i18n.translate(
+                      'xpack.observabilityAgentBuilder.logExploration.muteTooltip',
+                      { defaultMessage: 'Mute this pattern. Updates immediately.' }
                     )}
-                    onClick={() =>
-                      dispatch({
-                        type: 'ADD_REFINEMENT',
-                        refinement: {
-                          kind: 'exclude-pattern',
-                          origin: 'user',
-                          pattern: row.pattern,
-                        },
-                      })
-                    }
-                  />
-                </EuiToolTip>
+                  >
+                    <EuiButtonIcon
+                      data-test-subj="observabilityAgentBuilderTrailingControlColumnsButton"
+                      iconType="eyeSlash"
+                      color="text"
+                      aria-label={i18n.translate(
+                        'xpack.observabilityAgentBuilder.logExploration.muteAriaLabel',
+                        { defaultMessage: 'Mute pattern' }
+                      )}
+                      onClick={() =>
+                        dispatch({
+                          type: 'ADD_REFINEMENT',
+                          refinement: {
+                            kind: 'exclude-pattern',
+                            origin: 'user',
+                            pattern: row.pattern,
+                          },
+                        })
+                      }
+                    />
+                  </EuiToolTip>
+                  <EuiToolTip
+                    content={i18n.translate(
+                      'xpack.observabilityAgentBuilder.logExploration.compareTooltip',
+                      {
+                        defaultMessage:
+                          'Scope the view to this pattern and compare its volume against the baseline. Starts a new conversation turn.',
+                      }
+                    )}
+                  >
+                    <EuiButtonIcon
+                      data-test-subj="observabilityAgentBuilderTrailingControlColumnsButton"
+                      iconType="chartAreaStack"
+                      color="text"
+                      aria-label={i18n.translate(
+                        'xpack.observabilityAgentBuilder.logExploration.compareAriaLabel',
+                        { defaultMessage: 'Compare pattern against baseline' }
+                      )}
+                      onClick={() => onCompareBaseline(row.pattern)}
+                    />
+                  </EuiToolTip>
+                </>
               )}
               <EuiToolTip
                 content={i18n.translate(
@@ -151,7 +177,7 @@ export const PatternTable: React.FC<PatternTableProps> = ({
         },
       },
     ],
-    [rows, dispatch, onInvestigate, isReadOnly]
+    [rows, dispatch, onInvestigate, onCompareBaseline, isReadOnly]
   );
 
   if (rows.length === 0) {

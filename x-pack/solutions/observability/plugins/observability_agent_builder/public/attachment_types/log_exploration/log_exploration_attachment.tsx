@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { EuiCallOut, EuiFlexGroup, EuiFlexItem, EuiSpacer } from '@elastic/eui';
 import { i18n } from '@kbn/i18n';
 import type { ChartsPluginStart } from '@kbn/charts-plugin/public';
@@ -58,11 +58,23 @@ export const LogExplorationAttachment: React.FC<LogExplorationAttachmentProps> =
     onPersistError,
   });
 
+  // The flush leaves a window in which a second click would submit a second message for the same
+  // interaction, and for a comparison the two would disagree about which pattern is scoped.
+  const isStartingTurnRef = useRef(false);
+
   const startTurn = useCallback(
     async (message: string) => {
-      // The turn remounts this subtree from server state, so pending writes must land first.
-      await flushPendingWrites();
-      submitMessage?.(message);
+      if (isStartingTurnRef.current) {
+        return;
+      }
+      isStartingTurnRef.current = true;
+      try {
+        // The turn remounts this subtree from server state, so pending writes must land first.
+        await flushPendingWrites();
+        submitMessage?.(message);
+      } finally {
+        isStartingTurnRef.current = false;
+      }
     },
     [flushPendingWrites, submitMessage]
   );
@@ -88,6 +100,22 @@ export const LogExplorationAttachment: React.FC<LogExplorationAttachmentProps> =
   const onInvestigate = useCallback(
     (pattern: string) => startTurn(`Investigate why the log pattern "${pattern}" is occurring.`),
     [startTurn]
+  );
+
+  const onCompareBaseline = useCallback(
+    (pattern: string) => {
+      // The scope reaches the tool as loop state, never as pattern text in the message: a
+      // paraphrased pattern would be a silently wrong filter rather than an error. `startTurn`
+      // awaits the refetch this dispatch begins, so the refinement is written before the turn.
+      dispatch({
+        type: 'ADD_REFINEMENT',
+        refinement: { kind: 'only-pattern', origin: 'user', pattern },
+      });
+      return startTurn(
+        'Compare log volume against the baseline epoch for the pattern the view is now scoped to.'
+      );
+    },
+    [dispatch, startTurn]
   );
 
   if (!parsed.success) {
@@ -149,6 +177,7 @@ export const LogExplorationAttachment: React.FC<LogExplorationAttachmentProps> =
             dispatch={dispatch}
             charts={charts}
             onInvestigate={onInvestigate}
+            onCompareBaseline={onCompareBaseline}
             isReadOnly={isReadOnly}
           />
         ) : (
