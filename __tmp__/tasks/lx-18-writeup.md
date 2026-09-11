@@ -161,3 +161,27 @@ measured. If something reads as a conclusion the evidence does not support, cut 
 - Next: pick a comment and write it. Comment 1 is blocked on the screenshots unless the prose is
   written around empty slots; comment 2 is unblocked and is mostly already drafted in
   `6059-outcome-comment.md`; comment 3 is blocked on the concurrent-efforts answers.
+
+### 2026-09-11 — Comment 1 written
+
+- Changed: `__tmp__/6059-comment-1-journey.md` — skeleton replaced with the full prose draft.
+  Seven-step walkthrough, the two kinds of button, what the agent sees, two Mermaid diagrams, and
+  what the journey does not do yet. Screenshot table kept as it was. A "Notes on this draft" section
+  at the bottom records the four judgement calls; it is not for posting.
+- Decided (agent, flagging for the user rather than settling it): **steps 4 and 5 are agent turns,
+  not instant actions**, and the draft says so. Compare-baseline persists the scope and then submits
+  a message, and "Back to top patterns" does the same. Writing them as instant would have been the
+  easier story and would not survive a reader clicking through it.
+- Verified: every number traced to the state doc before it was written. Muting promoting Kafka
+  consumer lag at 83; 105 / 363 / 422 ms; three mutes 65 ms apart producing one re-query; the
+  16:44–18:44Z shift and the 2 h → 3 h → 1 h 30 zooms; 270 → 257 / 202 → 193 / 135 → 129 / 45 → 43
+  with Kafka overtaking Disk at 30 against 29; the 3612484 ms offset across four operations with
+  baseline lengths 120 / 180 / 90; the 720-document histogram matching the clicked row; the
+  540 → 85 follow-up sequence; the "As of this reading" quote; 600 against 426, +174, +41%.
+- Unverified: **neither Mermaid diagram has been rendered anywhere**, let alone in GitHub against
+  both themes. The floating `KEY` node in the first is the most likely thing to render badly.
+- Still open on this comment: **the nine screenshots do not exist.** The slots and what must be
+  visible in each are in the file, along with the theme, width and cropping questions. Asked the
+  user whether I should drive the browser and capture them.
+- Next: the screenshot decision, then comment 2 (unblocked) or comment 3 (needs the
+  concurrent-efforts answers).
