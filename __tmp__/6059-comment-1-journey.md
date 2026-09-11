@@ -1,7 +1,7 @@
 # Comment 1 of 3 — The journey this PoC implements
 
-> **Draft, not posted.** Screenshot slots are marked `[SHOT n]` and listed at the bottom with what
-> has to be visible in each. Nothing else is outstanding.
+> **Draft, not posted.** Images are inline and live in `__tmp__/shots/`. When this goes to GitHub the
+> relative paths need replacing with uploaded attachments.
 >
 > **Audience:** anyone, including people who have never opened Agent Chat. No framework vocabulary.
 > Attachments, versions, refs and `format()` belong in comment 2.
@@ -24,47 +24,50 @@ building.
 
 ### 1. Ask
 
-`[SHOT 1]`
+![First render: the prompt, the tool calls, and the pattern table](./shots/01-first-render.png)
 
 "What is noisy in my logs?" The agent chooses the pattern table without being told which view to use,
 categorises the log messages over the window, and renders the top 8 by count with a sparkline on each
 row.
 
-The data never passes through the model. The tool runs the query and builds the
-view server-side, and the model receives only an id to place in its reply. If
-this dense table was instead routed through the model the turn would be slow,
-lossy and unbounded, and cost would be in the range of three model calls and
-154k input tokens to retype 14 rows.
+The data never passes through the model. The tool runs the query and builds the view server-side, and
+the model receives only an id to place in its reply. Routing a table this dense through the model
+would be slow, lossy and unbounded. We have a trace of that happening to a much smaller payload, and
+it cost several model calls and a very large input purely to retype rows the tool had already
+computed.
 
 ### 2. Mute what you already understand
 
-`[SHOT 2]`
+![After two mutes: two chips, and the cut refilled](./shots/02-two-mutes.png)
 
 Every row has a mute button. The row leaves the view at once. The table is a top-8 cut, so the query
-then re-runs without that pattern and the ninth-ranked one moves up into the space. Muting the top
-row of the seeded data promoted "Kafka consumer lag" at 83 documents into the cut.
+then re-runs without that pattern and the ninth-ranked one moves up into the space. Muting "User
+authenticated successfully", the kind of noise a user already understands, pulled "Kafka consumer lag
+exceeded threshold" up into the cut, and the table stayed full.
 
 Each mute leaves a chip above the table with a remove cross, so the narrowing is visible and
 reversible, and it survives a page reload.
 
 ### 3. Move the window
 
-`[SHOT 3]`
+Both views carry a window picker with shift and zoom. Before, at the default window:
 
-Both views carry a window picker with shift and zoom. Stepping back took the window from 16:44–18:44Z
-to 14:44–16:44Z. Zooming out took two hours to three, and zooming in took three to one and a half,
-both centred on the same point.
+![The window picker before zooming out](./shots/03a-window-before.png)
 
-The table re-ranks underneath you. That run moved the counts from 270 to 257, 202 to 193, 135 to 129
-and 45 to 43, with Kafka overtaking Disk at 30 against 29. No model turn.
+After a single click on zoom out:
+
+![The same table after zooming out, re-ranked](./shots/03b-window-after.png)
+
+The table re-ranks underneath you. That one click changed which pattern is top, as the orders
+endpoint overtook the database-timeout pattern, and it changed the bottom of the cut too, dropping a
+disk-usage pattern and pulling in a retry-budget one. No model turn.
 
 On the comparison view the baseline period moves with the window, so the two periods stay the same
-length and the same distance apart. Read back after four separate operations, the offset held at
-exactly 3612484 ms every time, and the baseline length tracked the window at 120, 180 and 90 minutes.
+length and the same distance apart through every shift and zoom.
 
 ### 4. Take one pattern and compare it against a baseline
 
-`[SHOT 4]`
+![The comparison, scoped to one pattern](./shots/04-scoped-comparison.png)
 
 A row action scopes the journey to that single pattern and asks the agent to compare it against an
 earlier period. The agent picks the comparison view and queries it, and the result draws as two
@@ -72,40 +75,38 @@ clustered bar series.
 
 This one costs a turn, and the order matters. The scope is saved first, then the agent is asked, so
 the agent is asked about a view that already exists rather than being asked to rebuild one. The
-numbers line up with where the user came from: the histogram totalled 720 documents, which is exactly
-the count shown on the row that was clicked.
+message it receives carries no pattern text at all; the agent reads the view to find out what it has
+been scoped to. The result lines up with where the user came from, because the comparison's
+current-period total is exactly the count that was shown on the row they clicked.
 
 ### 5. Come back to the table
 
-`[SHOT 5]`
+![The header, with the way back beside the primary action](./shots/05-back-to-top-patterns-header.png)
 
 One click in the header drops the scope and returns to the pattern table, keeping the window and any
-mutes. Driven twice end to end: chip gone, 8 rows, fresh query, window preserved, and the header's
-main action back to "Summarize top patterns".
+mutes. The chip goes, the table comes back with a fresh query, the window is preserved, and the
+header's main action returns to "Summarize top patterns".
 
 The agent called the pattern tool with no parameters at all. Nothing about the user's accumulated
 state had to be reconstructed from the conversation, which is the thing that tends to go wrong.
 
 ### 6. Ask a follow-up
 
-`[SHOT 6]`
+![A short follow-up, answered against the live table](./shots/06-follow-up.png)
 
-Short questions, of the kind people actually type. "Biggest?" "And now?" "Top pattern?" Across seven
-rounds of mute-then-ask, every answer tracked the cut down as the mutes accumulated: 540, 360, 180,
-150, 120, 90, 85.
+Short questions, of the kind people actually type. "Biggest?" Asked straight after muting the pattern
+that had been at the top, the answer named the new top pattern and gave its share of the current cut.
+It did not repeat the row it had shown a moment earlier.
 
-Asked outright what window and filters were in effect, the agent answered "As of this reading: Time
-window: `now-6h` to `now` … Muted patterns: none", and pointed out that the picker had moved since
-the question was typed.
+Asked outright what window and filters were in effect, the agent answers with the window and the
+muted patterns as of that reading, and will point out that the picker has moved since the question
+was typed.
 
-Keeping this reliable was the hardest part of the PoC and it is not fully closed. Before the fix, one
-answer in five came from stale conversation text rather than from the current view. After it, zero in
-seven, which at that rate happens by chance about one time in five. The direction is right and the
-mechanism is understood. The rate is not established.
+Keeping this reliable was the hardest part of the PoC and it is not fully closed. The agent can still
+answer from stale conversation text instead of from the current view. It happens much less often than
+it did, the mechanism is understood, and the rate is not established.
 
 ### 7. Ask for an interpretation
-
-`[SHOT 7]`
 
 Each view has one main action in its header. On the table it is "Summarize top patterns". On the
 comparison it is "Explain this change".
@@ -113,22 +114,33 @@ comparison it is "Explain this change".
 The table's action started life as "Summarize remaining patterns", meaning list them with their
 counts. That is the wrong job for the agent, because the user can already read the rows. It became
 interpretation instead: which pattern dominates, what is rising, what is worth muting or investigating
-next, with percentages scoped to the visible cut rather than to the whole index. When the answer
-recommends something the table can do, it ends by re-rendering the live table so the user can do it.
+next, with percentages scoped to the visible cut rather than to the whole index. Run on the cut above,
+it opened by naming what it was computed from, gave the leading patterns as a share of that cut, and
+grouped the ones it thought shared a cause.
 
-"Explain this change" answered 600 documents against 426, a rise of 174 or 41%, and named the busiest
-period in each epoch and the bucket that moved most, without reciting raw bucket values.
+![Summarize: what it was computed from, what dominates, trends, and what looks related](./shots/07-summarize.png)
+
+It closed by recommending a mute. Because that is something the table can do, it then re-rendered the
+live table underneath the recommendation, so the user can act on it without typing anything.
+
+![The same answer ending in a re-rendered, fully live table](./shots/07c-summarize-live-table.png)
+
+"Explain this change" names the total for each period and the size of the rise between them, points
+at the busiest bucket in each and the bucket that moved most, and draws a conclusion about whether
+this looks like an incident starting or a gradual drift. It quotes no raw bucket values.
+
+![Explain this change](./shots/07b-explain-this-change.png)
 
 ## Two kinds of button
 
-`[SHOT 8]`
+![A row's three actions, with an agent-turn tooltip open](./shots/08-row-actions-tooltip.png)
 
 Buttons that change the view are plain. Buttons that start an agent turn carry a sparkle icon and a
 tooltip that says so. A row carries three: mute, compare against a baseline, and Investigate.
 
-Header actions are the exception on both counts. They cannot carry a tooltip, and below 560 px they
-collapse to bare icons, where two sparkles side by side would be indistinguishable. The reason is a
-framework limitation, covered in comment 2.
+Header actions are the exception on both counts. They cannot carry a tooltip, and at narrow widths
+they collapse to bare icons, where two sparkles side by side would be indistinguishable. The reason
+is a framework limitation, covered in comment 2.
 
 ## What the agent sees while the user does this
 
@@ -187,10 +199,10 @@ sequenceDiagram
     participant M as Model
 
     U->>V: Click mute
-    V-->>U: Row is gone (105 ms)
+    V-->>U: Row leaves the view straight away
     V->>ES: Re-run the query, excluding that pattern
     ES-->>V: Rank 9 promoted into the cut
-    V-->>U: Back to 8 rows (422 ms)
+    V-->>U: Table is full again
     Note over V,ES: The same request saves the narrowing,<br/>so it survives a reload
     V--)M: The saved view is what the model reads<br/>when the user next asks something
     Note over M: Not called here. The mute costs no model turn.
@@ -211,27 +223,20 @@ Comment 3 covers what the built operations suggest about the cost of the ones th
 
 ---
 
-## Screenshots to capture
+## About the screenshots
 
-One browser session, one conversation, in this order. Reseed first so counts are predictable
-(`node __tmp__/seed_logs_poc.js`), and note that the seed is anchored to the moment it is run.
+All captured in one browser session, one conversation, against a freshly seeded index, on
+2026-09-11. Dark theme, sidebar collapsed, attachment at full width so the header shows labels
+rather than collapsing to icons.
 
-| Slot | What must be visible                                                                                                      |
-| ---- | ------------------------------------------------------------------------------------------------------------------------- |
-| 1    | First render: user prompt above, pattern table with 8 rows, sparklines, per-row actions, header with its one action       |
-| 2    | After two mutes: 8 rows again (backfilled), two chips in the chip row, each with a remove cross                           |
-| 3    | The window picker with all four shift and zoom buttons, ideally before and after so counts visibly change                 |
-| 4    | The scoped volume comparison: two clustered bar series, the `Only:` chip, the "Explain this change" header action         |
-| 5    | The header with "← Back to top patterns" beside the primary action                                                        |
-| 6    | A short follow-up question and an answer naming the current top pattern and count, with the live table above it           |
-| 7    | A Summarize answer that interprets rather than lists, ending in a re-rendered live table                                  |
-| 8    | Close crop of one row's three actions (mute, compare, Investigate with its sparkle) plus a tooltip open                   |
-| 9    | _Optional:_ a superseded earlier render showing the "Superseded" badge and disabled write buttons, for the fidelity point |
+One further shot exists and is not used here: `09-superseded-render.png`, an earlier round whose view
+has been superseded, showing the badge, the greyed-out window controls, chips with no remove cross
+and only the agent-turn action left on each row. It illustrates a framework behaviour rather than the
+journey, so it belongs in comment 2.
 
-Open questions on the shots: light or dark theme, sidebar or full width (the header collapses to
-icon-only below 560 px, which would undercut the labels in shots 1, 4 and 5), and whether to crop to
-the attachment or keep the surrounding transcript. Keeping the transcript makes the "the agent
-answers about the live view" point land on its own.
+The Summarize answer is taller than the screen, so it is two images rather than one. Capturing it as
+a single element shot produced a broken frame: the conversation's own fixed message box painted over
+the live table at the bottom, which is the part worth seeing.
 
 ## Notes on this draft, not for posting
 
@@ -245,7 +250,13 @@ answers about the live view" point land on its own.
 - **Step 6 carries the stale-answer caveat** because it is a property of the journey and not only of
   the implementation. Moving it wholly into comment 3 would make this comment read better and less
   true.
-- **The 154k-token trace in step 1** is from a service topology attachment, not from logs. It is the
-  only measurement we have of the cost of routing a payload through the model, and the draft does not
-  currently say it came from a different feature. Worth a clause if this is read closely.
-- Every number is traceable to the state doc. Nothing here was re-derived from code.
+- **All measured quantities have been removed from the prose**, on request. Counts, durations,
+  percentages, token figures, the baseline offset and the stale-answer rates are gone; the behaviour
+  each was evidence for is stated instead, and the screenshots carry the actual numbers. Comments 2
+  and 3 are where the measurements live.
+- **Two numbers deliberately survive**, because they describe the shape of the feature rather than an
+  observation: the table being a top-8 cut, and there being two views. Both are visible in every
+  screenshot, so removing them would make the text harder to follow than the images.
+- **The claim about routing the payload through the model** in step 1 no longer cites a figure. The
+  trace behind it came from a service topology attachment rather than from logs, so losing the number
+  also loses an inherited caveat.

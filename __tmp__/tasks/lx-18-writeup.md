@@ -185,3 +185,111 @@ measured. If something reads as a conclusion the evidence does not support, cut 
   user whether I should drive the browser and capture them.
 - Next: the screenshot decision, then comment 2 (unblocked) or comment 3 (needs the
   concurrent-efforts answers).
+
+### 2026-09-11 — Screenshot session (in progress)
+
+- **RESEED, before:** about to run `node __tmp__/seed_logs_poc.js` at the user's explicit request, to
+  capture the nine screenshots for comment 1. This rewrites the `logs-poc-default` data stream and
+  will move counts and category ranks under anyone else mid-run. ES and Kibana both answered 200
+  before starting.
+- **RESEED, after:** `indexed=3685 errors=false`, `count=3685 patterns=32`. Route harness
+  `node __tmp__/verify_refinements.js` passed all seven assertions against the new seed (unfiltered
+  3685, `only-pattern` 720, `exclude-pattern` 2965, backfill to 8, `only` leaves exactly one row).
+  Counts and ranks have moved for anyone who was mid-measurement.
+- Driven in the browser, one fresh conversation, sidebar collapsed, dark theme, attachment width
+  768 px. Eleven screenshots captured. **They are on the local machine in `/tmp/lx18-shots/`, not in
+  the repo:** the integrated browser does not share a filesystem with the remote workspace, so
+  Playwright cannot write into `__tmp__/`. An empty `__tmp__/shots/` directory was created before
+  that was discovered and can be deleted.
+- Verified, all observed live rather than taken from the docs:
+  - The agent chose `explore_log_patterns` unprompted, rendered 8 rows, `aria-rowcount` 8, grid label
+    "Top 8 log patterns by document count".
+  - Mute backfills: muting "User authenticated successfully" pulled "Kafka consumer lag" into the
+    cut; a second mute pulled in Disk usage and kept the count at 8.
+  - One zoom out took the window to `Sep 11, 15:33 → 17:03`, moved the orders endpoint from 108 to
+    147 and past the database-timeout pattern at 136, and swapped Disk usage out for Retry budget
+    exhausted at 17.
+  - Compare-baseline sent a message with **no pattern text**; the agent called `attachments.read` to
+    discover the scope, then queried. Histogram current 136 against baseline 13, matching the clicked
+    row's 136 exactly.
+  - "Back to top patterns" dropped the `Only:` chip, kept both mutes and the window, and the agent
+    called `explore_log_patterns` with nothing reconstructed.
+  - "Explain this change": 136 vs 13, +123 (+946%), busiest bucket 36 at 14:03 UTC, moved-most bucket
+    also 14:03 up 35, no raw bucket values, plus a scoping disclaimer and "As of this reading".
+  - "Biggest?" after muting the 147-document row answered 136 at 30% of the cut, having called
+    `attachments.read` first. It did not repeat the 147.
+  - Summarize: named its inputs and the muted count, 55% of the 450 documents in the cut for the top
+    two, 0 rising and 0 flat, no muted pattern named, recommended a mute, and **re-rendered the live
+    table** with all eight mute buttons enabled.
+  - Superseded renders: four "Superseded" badges, window picker and all four shift/zoom buttons
+    `disabled`, chips with no remove cross, zero mute buttons, Investigate and Summarize still
+    enabled.
+  - Incidental corroboration of two documented framework items: the attachment panel's parent is a
+    `<p>` (the DOM-nesting warning), and the version chip renders under a hardcoded "Added" label
+    below the round.
+- Changed: `__tmp__/6059-comment-1-journey.md` — steps 2, 3, 4, 6 and 7 rewritten so every number
+  comes from this session and matches the screenshots. Replaced the "screenshots to capture" table
+  with a captured-file table and a note on which shots actually belong in the comment.
+- Unverified: the two timings in the mute sequence diagram (105 ms, 422 ms) were **not** re-measured
+  in this session; they remain earlier measurements. The 3612484 ms baseline offset, the "what window
+  is this?" exchange and the 154k-token trace are also earlier, and the prose now says so. Neither
+  Mermaid diagram has been rendered in GitHub.
+- Next: user picks which shots go in, then comment 2 (unblocked, and now has live evidence for the
+  superseded and chip-placement points) or comment 3 (still needs the concurrent-efforts answers).
+
+### 2026-09-11 — Images placed, measurements removed from comment 1
+
+- The user copied the eleven screenshots from the local `/tmp/lx18-shots/` into `__tmp__/shots/`, so
+  they are now in the repo and the relative paths resolve.
+- Changed: `__tmp__/6059-comment-1-journey.md` — ten images embedded inline at the steps they
+  illustrate, replacing the `[SHOT n]` markers and the slot table. The slot table is gone; a short
+  provenance note replaces it.
+- Decided (user): **remove specific measurements from this comment.** This reverses part of the
+  previous entry, which had just reconciled every number against the capture session. Removed:
+  document counts, the window timestamps, the ratio and percentage in the comparison, the share of
+  the cut, the two timings in the mute sequence diagram, the 3612484 ms baseline offset, the 560 px
+  header threshold, the 154k-token trace, and the one-in-five / zero-in-seven stale-answer rates. In
+  each case the behaviour the number was evidence for is still stated, and the screenshots carry the
+  actual values.
+- Kept deliberately, and flagged in the draft notes: the table being a **top-8 cut**, and there being
+  **two views**. Both describe the shape of the feature rather than an observation, and both are
+  visible in every screenshot.
+- Verified: grepped the file for digit-plus-unit patterns and for long numbers. The only remaining
+  numerals are the issue reference `#6064` and the capture date in the provenance note.
+- Unverified: the Mermaid diagrams still have not been rendered in GitHub, and the inline image
+  paths are repo-relative, so they will need swapping for uploaded attachments when the comment is
+  posted.
+- Note for whoever writes comments 2 and 3: **the measurements now live only there.** Comment 1 no
+  longer carries any of the evidence, so the numbers from the capture session are recorded in the
+  previous progress-log entry and nowhere else in the drafts.
+- Next: comment 2, which is unblocked and already mostly drafted in `6059-outcome-comment.md`, and
+  now has `09-superseded-render.png` plus live corroboration of the `<p>` nesting and the "Added"
+  chip label. Comment 3 still needs the concurrent-efforts answers.
+
+### 2026-09-11 — Fixed the broken Summarize screenshot
+
+- The user spotted that `07-summarize.png` was wrong. It was: captured with a full-element screenshot
+  of a round taller than the viewport, which Playwright renders by scrolling and stitching. The
+  conversation's fixed message box and the Kibana header repainted at each scroll step, so the frame
+  had empty bands top and bottom, the Kibana search bar bled into the middle, the answer began
+  mid-sentence, and the re-rendered live table at the end was painted over by the message box. That
+  table is the entire point of the shot.
+- Tried first and abandoned: hiding the fixed and sticky elements, then re-taking the element shot.
+  Hiding `nav` reflowed the page and Playwright never reached a stable element, so the capture timed
+  out. Visibility was restored.
+- Fixed by splitting the answer into two viewport-clipped captures, both taken above the message
+  box's fixed region:
+  - `07-summarize.png` re-taken — prompt, the `attachments.read` call, "Computed from the selected
+    window … 3 patterns muted", then dominance, trends and relatedness.
+  - `07c-summarize-live-table.png` new — the closing recommendation followed by the re-rendered live
+    table with all eight rows, sparklines and three enabled actions per row.
+- Changed: `__tmp__/6059-comment-1-journey.md` — step 7 now carries both images with a sentence
+  between them, so the re-render reads as the consequence of the recommendation rather than as
+  decoration. Added a line to the screenshot note explaining why that answer is two images.
+- **Action needed from the user:** both files are on the local machine in `/tmp/lx18-shots/` again,
+  not in the repo. `07-summarize.png` (overwritten) and `07c-summarize-live-table.png` (new) need
+  copying into `__tmp__/shots/`, same as last time.
+- Lesson for any further captures: element screenshots of anything taller than the viewport are
+  unreliable on this page. Scroll, then clip to the region between the sticky header and the fixed
+  message box.
+- Next: unchanged. Comment 2, or comment 3 once the concurrent-efforts questions are answered.
