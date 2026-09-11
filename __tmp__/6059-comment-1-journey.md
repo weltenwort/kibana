@@ -94,8 +94,8 @@ One click in the header drops the scope and returns to the pattern table, keepin
 mutes. The chip goes, the table comes back with a fresh query, the window is preserved, and the
 header's main action returns to "Summarize top patterns".
 
-The agent called the pattern tool with no parameters at all. Nothing about the user's accumulated
-state had to be reconstructed from the conversation, which is the thing that tends to go wrong.
+The agent called the pattern tool with no parameters at all, so nothing about the user's accumulated
+state had to be reconstructed from the conversation.
 
 ### 6. Ask a follow-up
 
@@ -157,10 +157,9 @@ Every time the agent answers, it re-reads the view as it currently stands: the w
 scope, the rows and their counts. It is also told when those numbers were fetched, so it can check
 whether a reading has gone stale rather than simply being warned that it might be.
 
-There is a limit worth stating here rather than burying it. Earlier rounds stay in the conversation,
-so the agent's own previous readings sit in its context going out of date while the user keeps
-clicking. That is the source of the stale answers in step 6, and the next comment covers why it is
-hard to fix from our side.
+This has a limit. Earlier rounds stay in the conversation, so the agent's own previous readings sit
+in its context going out of date while the user keeps clicking. That is the source of the stale
+answers in step 6, and the next comment covers why it is hard to fix from our side.
 
 ## The loop
 

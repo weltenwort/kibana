@@ -343,3 +343,36 @@ measured. If something reads as a conclusion the evidence does not support, cut 
   needs a gloss.
 - Unverified: nothing driven. No screenshot, number or claim changed.
 - Next: unchanged. Comment 2, or comment 3 once the concurrent-efforts questions are answered.
+
+### 2026-09-11 — Comment 2 written
+
+- Changed: `__tmp__/6059-comment-2-implementation.md` — skeleton replaced with the full draft, about
+  2,400 words. Shape of the build with an architecture diagram, the payload model, seven hurdles
+  ordered by cost, what the tests did not catch, and what is left in the working tree.
+- Embedded `./shots/09-superseded-render.png` in hurdle 3, which is where it belongs: it is the
+  visual proof that write-disabled-on-stale works, sitting immediately above the explanation of the
+  case it does **not** contain.
+- Decided (agent, recorded in the draft's working notes, all three were open questions in the
+  skeleton):
+  1. **Kept the architecture diagram and the payload-model section.** Neither is in
+     `6059-outcome-comment.md`. The diagram covers the emit-server-side arrangement, which is the
+     part most likely to be copied by another team.
+  2. **Kept the sharp-edges list in full** rather than collapsing it. Seven items, each a cheap fix
+     for the Agent Builder team, and this is the only place they are written down.
+  3. **Ref accumulation lives here** as a measured framework defect (hurdle 6). The argument about
+     whether the primitive is right stays in comment 3, which cross-references rather than repeats.
+- Carried forward from comment 1's review: forward references are worded "the previous comment" and
+  "the third comment", never numbered, since nothing links until the comments are posted. Working
+  notes sit below an explicit "Not part of the comment" heading.
+- Verified: banned-phrase scan 0 violations after one fix ("the real fix is" flagged as throat
+  clearing, rewritten as a direct statement). Structure and silhouette scans both report no flags.
+  The only em-dash is in the file's own title line, same as comment 1; the two ellipses are inside
+  code spans and are literal.
+- Unverified: the Mermaid architecture diagram has not been rendered anywhere, in GitHub or
+  otherwise. Every measurement in the comment is quoted from the state doc rather than re-driven in
+  this session.
+- Two open questions for the user, in the draft's working notes: whether the Elasticsearch `must_not`
+  finding should become its own issue against Elasticsearch with this comment reduced to a pointer,
+  and whether 2,400 words is too long.
+- Next: comment 3. Still blocked on the concurrent-efforts answers, which is the one thing in these
+  drafts I cannot source from the workspace.
