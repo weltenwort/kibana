@@ -1,13 +1,13 @@
-# Comment 2 of 3 — How it is built, and what we had to work around
+# Comment 2 of 3 — How it is built, and what got in the way
 
 > **Draft, not posted.** Images are repo-relative and need uploading when this goes to GitHub.
 > Working notes are below the line at the bottom.
 
 ---
 
-The previous comment showed the loop from the outside. This one covers how it is built and what we
-had to work around to build it. Most of what follows is not specific to logs: the same hurdles would
-face anything trying to put an interactive, writable view inside Agent Chat.
+The previous comment showed the loop from the outside. This one covers how it is built, and the
+distance between the attachment contract as it stands and an interactive, writable view inside Agent
+Chat. Little of what follows is specific to logs.
 
 ## Shape of it
 
@@ -15,6 +15,13 @@ Two ES|QL tools emit **one** attachment, server-side. Either can open the journe
 whichever fits the question, whichever runs first creates the attachment, and the other updates that
 same one. A renderer branches on which view the attachment is carrying, and
 the user's clicks write back to it without a model turn.
+
+The single attachment is forced. `AttachmentRenderProps` carries only the attachment being rendered,
+with no sibling access and no conversation id, so a renderer cannot read or write any other
+attachment. Splitting immutable tool output from mutable user state across two attachments is the
+cleaner design and the contract cannot express it. Everything lives in one payload and the renderer
+branches on a field inside it. The same gap is what ruled out the renderer self-fetch approach
+in #6064.
 
 ```mermaid
 flowchart TB
@@ -66,16 +73,16 @@ functions. Slanted boxes are HTTP endpoints. The cylinder is the stored
 attachment, and plain boxes are rendered UI.
 
 The two function boxes in the browser, `updateContent()` and `submitMessage()`, are the two
-capabilities the attachment contract did not have. Hurdle 1 covers what adding them cost.
+capabilities the attachment contract does not have. Hurdle 1 covers both.
 
 Two consequences follow.
 
 **The payload never routes through the model.** The tool runs the query and calls `attachments.add`
 itself; the tool result carries only `attachment_ids`, so the model places a `<render_attachment>`
-tag and never sees a row. We have a trace of the alternative: a service-topology attachment built the
-other way cost three model calls and 154k input tokens for a fourteen-connection payload the model
-had to retype into tool parameters, with nothing checking that what it retyped matched what the tool
-had returned.
+tag and never sees a row. The alternative, which the existing service-map attachment uses, returns
+the data to the model and has it retype the payload into tool parameters. That spends extra model
+calls and an input-token bill that scales with the size of the result, and nothing checks that what
+the model retyped matches what the tool returned.
 
 **Both paths share one query implementation.** The instant-refetch routes wrap the same handler
 functions the tools call, so a refetch and an agent-driven query cannot disagree.
@@ -91,23 +98,16 @@ one chip row and one merge rule. Adding a kind of narrowing costs a case in `bui
 and a control, and nothing else. `view` and `result` are discriminated unions on the same key, so a
 `volume-comparison` view cannot carry pattern-table data.
 
-Introducing this model surfaced a bug nobody had noticed. Before it existed, `getLogVolumeComparison`
-took only a `kqlFilter` and had no way to receive mutes at all, so muting noise in the table never
-reached the histogram. Once refinements narrowed the subject rather than the renderer, both lenses
-honoured them by construction.
-
-The cost is that switching lens discards the other lens's cached result, so switching back
-re-queries.
+Because refinements narrow the subject instead of the renderer, every lens honours them by
+construction. The cost is that switching lens discards the other lens's cached result, so switching
+back re-queries.
 
 ## The hurdles
 
-Ordered by how much they cost.
+### Nothing in the browser contract can write attachment content
 
-### 1. Nothing in the browser contract can write attachment content
-
-This is the one with consequences outside our own plugin. Making a click change an attachment took
-five local edits to code owned by other teams. **None is a PR, and nothing ships until they are
-reverted or upstreamed.**
+The only hurdle with consequences outside the consuming plugin. Making a click change an attachment
+takes five edits to code owned by other teams, so none of this runs on a stock Kibana.
 
 | File                                                                 | Change                                                                                                                                                                                                   |
 | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -121,13 +121,10 @@ In substance they add two capabilities the contract does not have, plus two chan
 additions.
 
 **A content write.** `updateContent` on `AttachmentsService`, mirroring the existing `updateOrigin`
-http wrapper, plus the optional callback on the two renderer interfaces. Optional because six
-consumer test files hand-construct those params. The public
+http wrapper, plus the optional callback on the two renderer interfaces. Optional because existing
+consumer tests hand-construct those params. The public
 `PUT /api/agent_builder/conversations/{id}/attachments/{id}` endpoint already existed, with no caller
-anywhere in Kibana and no browser wrapper, which #6064 established. **This is a candidate for
-upstreaming close to as written**, with one caveat: upstreaming it unchanged blesses the
-full-payload PUT as the write shape for attachment content, which is what breaks under concurrency.
-See hurdle 3.
+anywhere in Kibana and no browser wrapper, which #6064 established.
 
 **A way for a renderer to start an agent turn.** Optional `submitMessage` on the same two interfaces,
 wired from `useSubmitMessage()`. Nothing else in the contract can do this. `openChat` silently drops
@@ -139,51 +136,38 @@ Both of those are open defects below.
 **The allow-list entry** is the gate working as designed. `registerType` throws without it, which
 forces a conversation with the Agent Builder team before any of this is real.
 
-**The content-update route change is expedient.** The route computes the correct ref and never
+**The content-update route change is a stopgap.** The route computes the correct ref and never
 persists it to the round, so the framework re-renders the stale pinned version even though
-`versions[]` already holds the new one. We made it attach the ref to the last completed round. That
-makes writes visible, and it also produces the two defects #6064 already flagged: one ref appended
-per click, unbounded, and version chips placed beside the user's prompt under a hardcoded "Added"
-label. The correct version of this change collapses refs and attributes button-driven edits properly.
-That is a design call for the Agent Builder team.
+`versions[]` already holds the new one. Attaching the ref to the last completed round makes writes
+visible, and it also produces the two defects #6064 already flagged: one ref appended per click,
+unbounded, and version chips placed beside the user's prompt under a hardcoded "Added" label. The
+correct version of this change collapses refs and attributes button-driven edits properly. That is a
+design call for the Agent Builder team.
 
-### 2. Identity is coupled to data freshness
+### Identity is coupled to data freshness
 
-The most expensive framework behaviour here. The pinned version both selects the data and forms the
+The constraint underneath most of the rest. The pinned version both selects the data and forms the
 `AttachmentRenderErrorBoundary` key (`id:version`). A ref that does not advance keeps the key stable
 and renders stale content; a ref that advances refreshes the content and always moves the key. No
 configuration gives a plain re-render with fresh data.
 
-So content writes must not call `invalidateConversation()`. Measured, both ways:
+So content writes must not call `invalidateConversation()`. With invalidation, every click tears down
+and rebuilds the attachment's whole subtree and refetches the conversation on top of the write.
+Without it, the click updates local state and sends a single PUT.
 
-|                                  | Without invalidation (shipped) | With invalidation (experiment)            |
-| -------------------------------- | ------------------------------ | ----------------------------------------- |
-| Row disappears                   | ~50 ms                         | ~50 ms (local state)                      |
-| Subtree rebuilt                  | never                          | ~712 ms after every click                 |
-| Network per click                | one ~16 KB PUT                 | ~16 KB PUT + two ~40 KB conversation GETs |
-| Clicking faster than the rebuild | correct                        | rows revert on screen                     |
-
-That last row is the reason we do not invalidate. Sampled every 20 ms across two mutes 200 ms apart:
-
-```
-t=38    5 rows   mute #1 applied locally
-t=257   4 rows   mute #2 applied locally
-t=405   5 rows   <- muted row REAPPEARS
-t=1393  4 rows   settles once mute #2's write lands
-```
-
-A three-click sequence then landed its third click on an already-muted pattern, because the reverted
-row returned to position 0 under the pointer. Nothing was lost only because the mute action is
-idempotent.
+The rebuild is slower than a person clicking. A second click applied locally is therefore undone on
+screen when the first click's rebuild arrives carrying data that predates it, and the row reappears
+in its old position until the second write lands. The next click in a sequence then lands on whatever
+moved under the pointer. Nothing is lost only because the mute action is idempotent.
 
 Invalidating is not incorrect. Writes are serialised and the rebuild re-seeds from a server that
 already holds every mute, so the data converges. The cost is the visible revert and the network
 amplification.
 
-### 3. Two renders of one attachment never reconcile
+### Two renders of one attachment never reconcile
 
 The attachment renders in more than one round, and without invalidation those instances never
-reconcile. Muting in an older render PUT a full payload derived from its stale base and destroyed a
+reconcile. Muting in an older render PUTs a full payload derived from its stale base, destroying any
 newer mute.
 
 The containment is to disable writes where `version < versionCount`. On a superseded render the
@@ -194,54 +178,49 @@ remains:
 ![A superseded render: badge, greyed controls, chips with no remove cross, one action left](./shots/09-superseded-render.png)
 
 Agent-turn actions stay enabled on purpose: they only send a prompt, and the agent reads live state.
-An earlier attempt suppressed every action instead, and `AttachmentHeader` returns `null` when it has
-no buttons, which deleted the title, the icon and the "Superseded" badge that explained why the
-buttons were gone.
 
 **It does not contain the case where neither round carries a ref.** `resolveAttachmentVersion` falls
 back to `versions.at(-1)`, so both renders resolve to the latest version, `version < versionCount`
-never fires, and neither is marked superseded. No badge, all buttons enabled. Reproduced
-deliberately: muting in the new render left the pattern listed in the old one, and muting a different
-row in the old render then reloading showed the new render's mute gone, its pattern back and no chip.
+never fires, and neither is marked superseded. No badge, all buttons enabled. Muting in the newer
+render leaves the pattern listed in the older one, and muting a different row in the older render
+then reloading shows the newer render's mute gone, its pattern back and no chip.
 
 A mounted render cannot discover that it has been superseded: props stay frozen and content writes
 must not invalidate. Nothing in the existing API detects it either. `stale_check.ts` covers origin
 staleness rather than version concurrency, and the content-update route belongs to Agent Builder.
-**This defect blocks shipping.** The fix is delta writes (`{ mute: pattern }`) replacing
-full-payload PUTs, which is an API design question. The third comment carries the
-recommendation.
+**Of everything here, this is the one that would have to be fixed before anyone built on this
+pattern.** The fix is delta writes (`{ mute: pattern }`) replacing full-payload PUTs, which is an API
+design question.
 
-### 4. `format()` did not reach the model for most of this PoC
+### `format()` reaches the model only if the type opts in
 
-Found late, and it invalidates a lot of our earlier notes. `prepareRoundInput` hardcodes
+`prepareRoundInput` hardcodes
 `attachments: []`, so the `representation.value` path in `to_langchain_messages` is dead. Each round
 gets `attachment_context`: metadata only, plus a note telling the model to call `attachment_read`.
-**That read returns the raw payload unless the type sets `isReadonly: true`.** Ours did not.
-
-Every rule in `format()` was dead code, and the agent was reasoning off raw JSON. Observed directly:
-it quoted `121, 143, 146` and "buckets 33 to 36 are 0", values that appear only in the raw series and
-never in the formatted representation.
+**That read returns the raw payload unless the type sets `isReadonly: true`.** Without the flag,
+every rule in `format()` is dead code and the agent reasons off raw JSON. The tell is the agent
+quoting bucket values and array positions that exist only in the stored series and never appear in
+the formatted representation.
 
 Setting the flag is safe: `readonly` is enforced only in the agent's builtin add and update tools, so
-the tool emit path and the user's writes are unaffected. But any claim we made about model behaviour
-before this fix was measuring something else.
+the tool emit path and the user's writes are unaffected.
 
-### 5. There is one per-round channel, and it goes missing when it is needed most
+### There is one per-round channel, and it goes missing when it is needed most
 
 There are three candidate places to put text the model must see every turn. Only one works.
 
-- **The skill body** is not reliably in context for button-triggered turns. An "Explain this change"
-  round showed no `load_skill` call at all.
+- **The skill body** is not reliably in context for button-triggered turns; such a round can arrive
+  with no `load_skill` call at all.
 - **`getAgentDescription()`** is injected once per conversation per type.
 - **`format()`**, reached through `attachments.read`, is the only per-round channel.
 
 So anything that has to hold every turn lives in `format()`, which is why it carries the muted-pattern
 rules, the top-N framing, each row's share of the cut and a trend token.
 
-A related gap is worse, and we recorded it rather than working around it. `prepareRoundInput` gates
+A related gap is worse. `prepareRoundInput` gates
 the whole `inputAttachments` block on `if (input.attachment_refs)`, and the
 `formatAttachmentsMetadata` fallback sits _inside_ that branch. A round with no refs therefore gets
-no attachment metadata and no type description. Confirmed live: `refs: []` produces
+no attachment metadata and no type description: `refs: []` produces
 `attachment_context: false`. Because a content PUT attaches its ref to the last completed round,
 changing the view and then asking a question produces exactly that round. **The moment a reminder is
 most needed is the moment none is sent.**
@@ -251,19 +230,30 @@ It gets worse. `convertPreviousRounds` replays earlier tool results as `ToolMess
 context going stale. That makes the agent's own previous words the strongest stale source in the
 transcript.
 
-Instead of working around it, `format()` now ends by stamping when its numbers were fetched, so the
-model can compare that against the `[Sent: …]` timestamp on the message it is answering. Staleness
-becomes checkable rather than asserted. A standing "always read an attachment before referencing its
-content" rule is already in the system prompt every round, so restating it again would not have
-helped.
+There is no way to close that gap from a plugin, so `format()` ends by stamping when its numbers were
+fetched, and the model compares that against the `[Sent: …]` timestamp on the message it is
+answering. Staleness becomes checkable rather than asserted. A standing "always read an attachment
+before referencing its content" rule already sits in the system prompt every round, so restating it
+does not help.
 
-### 6. Sharp edges
+Writing the text in that channel is its own engineering problem, with failure modes no type-checker
+can see:
 
-Each of these is a small fix, and each one cost time to find.
+- **A writing rule gets read as a reading rule.** An unscoped "prefer saying what the user cannot
+  already see" reads as licence to answer without opening the attachment at all, so the agent
+  answers from what it remembers about state that has since changed. Scoping the rule to what the
+  model _writes_ fixes it.
+- **A rule is only as strong as its adjacency to what it governs.** A count stated immediately before
+  the row list holds. Put explanatory prose between the two and the model goes back to computing the
+  count itself, wrongly.
+
+### Other sharp edges
+
+Each of these is a small fix on the framework side, and none of them announces itself.
 
 - **`maxContentLength` on `AttachmentTypeDefinition` is declared and never enforced.** Every zod bound
-  has to do real work. Three of ours were wrong before they were re-derived, in the direction where a
-  tool input the schema accepted could produce an attachment that then failed validation.
+  has to do real work, and a tool input the schema accepts can produce an attachment that then fails
+  validation.
 - **`AttachmentHeader` returns `null`** when it has no action buttons, taking the title, icon and
   badges with it. A lens must never register zero.
 - **A missing version renders as `null` with no diagnostic.** If an attachment silently disappears
@@ -271,56 +261,12 @@ Each of these is a small fix, and each one cost time to find.
   Nothing in the UI says so.
 - **`ActionButton` exposes a tooltip only through `disabledReason`**, so no header action can carry
   one. Below 560 px they also collapse to bare icons, where two sparkle icons are indistinguishable.
-- **Invalid EUI icon names fail silently.** `eyeClosed` is not an icon; EUI ships `eye` and
-  `eye_slash`. No type error, no lint error, no runtime error.
 - **DOM-nesting warnings come from the framework.** Inline renders live inside a
   markdown `<p>`, and the framework's own `EuiSplitPanel.Outer` is already a `div` inside it. Every
   attachment type with `renderInlineContent` hits this. Hoisting block nodes out of paragraphs in the
   markdown plugin would clear it for all of them at once.
-- **Ref accumulation.** One ref entry appended per button click, unbounded. Six observed on a single
-  round after five mutes. Every refetch also cuts a version. More interaction makes this worse rather
-  than different.
-
-## What the tests did not catch
-
-Six bugs were found while building this. **All six passed type-check, lint and unit tests.** Three
-were visible only by driving the running UI.
-
-1. **Time-range trap.** `loopState.timeRange ?? { start, end }` made loop state win unconditionally,
-   so the first emitted range became permanent and the agent could never widen a window that returned
-   nothing. It saw an empty result and concluded the data was missing.
-2. **Cross-render clobber.** Hurdle 3 above, found by muting in an older render.
-3. **Disappearing header.** The first read-only implementation suppressed every action, and
-   `AttachmentHeader` returned `null`.
-4. **Unmute restored a row with a stale count.** A refetch drops muted patterns from the payload, so
-   the client retains the last-seen entry to make unmute possible at all. Restoring it after a range
-   change put a count from the old window into a table whose other rows belonged to the new one.
-5. **The write flush did not cover refetches.** An agent turn started right after a range change
-   could read the old window, because the flush awaited only the write queue and not the in-flight
-   fetch.
-6. **The dataset could not exercise the top-N.** Seven categories against a limit of 25 meant muting
-   could never promote a new pattern, so the backfill looked correct only because nothing was ever
-   cut.
-
-Two more belong in a separate category, because they are about the model rather than the code:
-
-- **A writing rule was read as a reading rule.** "Prefer saying what the user cannot already see"
-  appeared unscoped, and the model took it as licence to answer without reading the attachment at
-  all. It answered about a pattern that was muted, quoting a count from an older window, while the
-  live top row said something else. Fixed by scoping the rule to what the model _writes_.
-- **A miscount came back because a sentence moved.** The un-muted count was stated in `format()`
-  immediately before the row list. Inserting two explanatory paragraphs between them was enough for
-  the model to go back to computing the count itself, wrongly. A rule in `format()` is only as strong
-  as its adjacency to what it governs.
-
-## What is left in the working tree
-
-Five files touched outside our own plugin, listed in hurdle 1. None is a PR. All of them are reverted
-or upstreamed before any of this ships, and two of them need the Agent Builder team to decide the
-right shape rather than take ours.
-
-The third comment covers whether to build this properly, and what the framework would need to offer
-for it to be a supported pattern rather than a PoC.
+- **Ref accumulation.** One ref entry appended per button click, unbounded, and every refetch also
+  cuts a version. More interaction makes this worse rather than different.
 
 ---
 
@@ -380,14 +326,61 @@ for it to be a supported pattern rather than a PoC.
   graph meant routing every action
   through the renderer node and made the picture harder to read for no gain, since `A --> V` was
   already a data-flow arrow.
+- **The single-attachment constraint is now stated.** The draft described the architecture without
+  saying why it is shaped that way, which left one attachment holding two views looking like a
+  preference. It is a contract limitation: no sibling access, no conversation id. That belongs in
+  this comment more than most things in it, and it is also the answer to the first question an
+  Agent Builder reader would ask about the diagram.
+- **Cut five internal war stories** that were path dependencies of our own implementation and carried
+  no finding for an outside reader: the `getLogVolumeComparison` filter bug that the refinements
+  model exposed; four of the six bugs in "What the tests did not catch", now summarised as a count;
+  "an earlier attempt suppressed every action", since the `AttachmentHeader` behaviour it discovered
+  is already in the sharp edges; "three of ours were wrong" on the zod bounds; and the two lines
+  about our earlier notes being invalidated. What survives in each case is the framework behaviour or
+  the transferable lesson.
+- **Two whole sections were cut as process rather than outcome.** "What the tests did not catch" was
+  a statement about our testing, and two of its six items duplicated hurdles 3 and 6. The part that
+  survives is the pair of model-facing failures, re-homed into hurdle 5 and reframed as findings
+  about writing text for the per-round channel, which is what that hurdle is about. "What is left in
+  the working tree" restated the local-edits dependency. The comment now ends on the pointer to
+  comment 3.
+- **Neither section nor hurdle 1 carries the branch bookkeeping now.** "None is a PR, and nothing
+  ships until they are reverted or upstreamed" described the state of our working tree. Hurdle 1 says
+  the outcome fact instead: five edits to other teams' code, so none of this runs on a stock Kibana.
+  Comment 3 already lists the five edits as one of the three things standing between this and
+  shipping, which is where a reader can act on it.
+- **Evidence is stated as behaviour, not as something we did.** "Reproduced deliberately:",
+  "Observed directly:", "Confirmed live:", "Six observed on a single round" and "Two we hit" all
+  narrated our activity in front of the finding. Each now states the behaviour in the present tense,
+  which is what a reader can check against the code. Two survived on purpose: "Measured, both ways"
+  and "Sampled every 20 ms across two mutes 200 ms apart", because the first tells a reader the
+  numbers are not estimates and the second is needed to read the trace at all.
+- **No shipping language anywhere in this comment.** Nothing here ships, so the invalidation table's
+  "(shipped)" and "(experiment)" column labels went, and hurdle 3's "this defect blocks shipping"
+  became "the one that would have to be fixed before anyone built on this pattern". Comment 3 is
+  where a decision about building gets made, and that is the only place the framing belongs.
 - **The Elasticsearch finding is deliberately not here.** An ES|QL query-shape bug cost real time
   during the PoC and is written up in the state doc, but it is aimed at a team that will never read
   this thread, and it is not a finding about Agent Builder. Reporting it wants its own issue against
   Elasticsearch rather than a paragraph in this one.
+- **Run-specific measurements are gone.** The invalidation table's millisecond and payload-size
+  figures, the 20 ms sample trace, the service-map comparison's three calls and 154k tokens, the raw
+  values the agent quoted, "six consumer test files", "six refs after five mutes" — all of them are
+  properties of one machine, one dataset and one conversation, and none of them changes what a reader
+  should do. Each is now stated as the behaviour the number was evidence for: the rebuild is slower
+  than a person clicking, the token bill scales with result size, the agent quotes values that exist
+  only in the stored payload. The two that stayed are real thresholds rather than samples: the 560 px
+  breakpoint, and the five files in hurdle 1.
+- **Process framing removed throughout.** "We had to work around", "we made it", "we recorded it
+  rather than working around it", "turned out to be", "each one cost time to find", "ours did not"
+  and the two model-prompt stories told as things that happened to us. Each now reads as a standing
+  property of the framework or the prompt channel, in the present tense, which is what a reader can
+  check. Where the history was load-bearing — the route change being a stopgap, the
+  full-payload PUT being the wrong write shape — the judgement survives without the narrative.
 
 ## Open questions
 
-- **Length.** Around 2,100 words and one screenshot. Longer than the first comment, but the audience
+- **Length.** Around 2,000 words and one screenshot. Longer than the first comment, but the audience
   is engineers and the hurdle sections are the reason the comment exists.
 - The five-file table repeats what is in the state doc. If that doc is ever published, the table
   should become a link.
