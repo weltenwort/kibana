@@ -8,6 +8,8 @@
 
 ---
 
+Here is the user journey and what it is like to use. Further comments will cover how it is built and what had to be worked around to build it.
+
 A user opens Agent Chat and asks what is noisy in their logs. The agent runs a query and renders a
 table of log patterns ranked by count, each with a trend sparkline. From there the user works the
 table directly: mute a pattern they already understand, move the time window, take one pattern and
@@ -28,7 +30,7 @@ building.
 
 "What is noisy in my logs?" The agent chooses the pattern table without being told which view to use,
 categorises the log messages over the window, and renders the top 8 by count with a sparkline on each
-row.
+row. That is Renderer A.
 
 The data never passes through the model. The tool runs the query and builds the view server-side, and
 the model receives only an id to place in its reply. Routing a table this dense through the model
@@ -70,11 +72,16 @@ length and the same distance apart through every shift and zoom.
 ![The comparison, scoped to one pattern](./shots/04-scoped-comparison.png)
 
 A row action scopes the journey to that single pattern and asks the agent to compare it against an
-earlier period. The agent picks the comparison view and queries it, and the result draws as two
-clustered bar series.
+earlier period. The agent picks the comparison view and queries it. That is Renderer B, drawn as two
+bar series clustered per bucket rather than overlaid as the criteria describe: overlaying two bar
+series turns out to be impossible in the charting library, and the next comment has the detail.
+
+The baseline defaults to the period immediately before the window. The picker beside the chart also
+offers an hour, six hours, a day or a week earlier, or a range chosen by hand, and changing it
+re-queries the baseline series without a model turn.
 
 This one costs a turn, and the order matters. The scope is saved first, then the agent is asked, so
-the agent is asked about a view that already exists rather than being asked to rebuild one. The
+it answers about a view that already exists rather than rebuilding one. The
 message it receives carries no pattern text at all; the agent reads the view to find out what it has
 been scoped to. The result lines up with where the user came from, because the comparison's
 current-period total is exactly the count that was shown on the row they clicked.
@@ -98,8 +105,8 @@ Short questions, of the kind people actually type. "Biggest?" Asked straight aft
 that had been at the top, the answer named the new top pattern and gave its share of the current cut.
 It did not repeat the row it had shown a moment earlier.
 
-Asked outright what window and filters were in effect, the agent answers with the window and the
-muted patterns as of that reading, and will point out that the picker has moved since the question
+Asked outright what window and filters were in effect, the agent answered with the window and the
+muted patterns as of that reading, and pointed out that the picker had moved since the question
 was typed.
 
 Keeping this reliable was the hardest part of the PoC and it is not fully closed. The agent can still
@@ -136,27 +143,29 @@ this looks like an incident starting or a gradual drift. It quotes no raw bucket
 ![A row's three actions, with an agent-turn tooltip open](./shots/08-row-actions-tooltip.png)
 
 Buttons that change the view are plain. Buttons that start an agent turn carry a sparkle icon and a
-tooltip that says so. A row carries three: mute, compare against a baseline, and Investigate.
+tooltip that says so. A row carries three: mute, compare against a baseline, and Investigate. That
+last one asks the agent why a single pattern is occurring, and it answers against the window and the
+mutes in effect at the moment it is clicked rather than the ones in force when the table was drawn.
 
 Header actions are the exception on both counts. They cannot carry a tooltip, and at narrow widths
 they collapse to bare icons, where two sparkles side by side would be indistinguishable. The reason
-is a framework limitation, covered in comment 2.
+is a framework limitation, covered in the next comment.
 
 ## What the agent sees while the user does this
 
 Every time the agent answers, it re-reads the view as it currently stands: the window, the mutes, the
-scope, the rows and their counts. It is also told when those numbers were fetched, so it can work out
-that a reading has gone stale rather than having to be told that it might have.
+scope, the rows and their counts. It is also told when those numbers were fetched, so it can check
+whether a reading has gone stale rather than simply being warned that it might be.
 
 There is a limit worth stating here rather than burying it. Earlier rounds stay in the conversation,
 so the agent's own previous readings sit in its context going out of date while the user keeps
-clicking. That is the source of the stale answers in step 6, and comment 2 covers why it is hard to
-fix from our side.
+clicking. That is the source of the stale answers in step 6, and the next comment covers why it is
+hard to fix from our side.
 
 ## The loop
 
 ```mermaid
-flowchart LR
+flowchart TD
     ASK["User asks<br/>about logs"]
     TABLE["<b>Pattern table</b><br/>top 8 by count, with trend"]
     COMPARE["<b>Volume comparison</b><br/>this window against an earlier one"]
@@ -219,26 +228,29 @@ What is not here:
 - Focusing the window onto a spike by selecting it on the chart, and filtering the table by log
   level. Both are designed and queued rather than built.
 
-Comment 3 covers what the built operations suggest about the cost of the ones that were not.
+The third comment covers what the built operations suggest about the cost of the ones that were not.
 
 ---
 
-## About the screenshots
+# Working notes below this line. Not part of the comment.
 
-All captured in one browser session, one conversation, against a freshly seeded index, on
-2026-09-11. Dark theme, sidebar collapsed, attachment at full width so the header shows labels
-rather than collapsing to icons.
+## Screenshot provenance
 
-One further shot exists and is not used here: `09-superseded-render.png`, an earlier round whose view
-has been superseded, showing the badge, the greyed-out window controls, chips with no remove cross
-and only the agent-turn action left on each row. It illustrates a framework behaviour rather than the
-journey, so it belongs in comment 2.
+All captured in one browser session, one conversation, against a freshly seeded index, on 2026-09-11.
+Dark theme, sidebar collapsed, attachment at full width so the header shows labels rather than
+collapsing to icons. The comment itself says only that they come from one session, which is as much
+as a reader needs.
+
+One further shot exists and is not used: `09-superseded-render.png`, an earlier round whose view has
+been superseded, showing the badge, the greyed-out window controls, chips with no remove cross and
+only the agent-turn action left on each row. It illustrates a framework behaviour rather than the
+journey, so it belongs in the second comment.
 
 The Summarize answer is taller than the screen, so it is two images rather than one. Capturing it as
 a single element shot produced a broken frame: the conversation's own fixed message box painted over
 the live table at the bottom, which is the part worth seeing.
 
-## Notes on this draft, not for posting
+## Notes on this draft
 
 - **Steps 4 and 5 cost an agent turn**, and the draft says so rather than filing them under instant.
   The honest version of the claim is that the cheap actions are cheap and the ones needing reasoning
@@ -256,7 +268,41 @@ the live table at the bottom, which is the part worth seeing.
   and 3 are where the measurements live.
 - **Two numbers deliberately survive**, because they describe the shape of the feature rather than an
   observation: the table being a top-8 cut, and there being two views. Both are visible in every
-  screenshot, so removing them would make the text harder to follow than the images.
+  screenshot, so removing them would leave the prose vaguer than the images beside it.
 - **The claim about routing the payload through the model** in step 1 no longer cites a figure. The
   trace behind it came from a service topology attachment rather than from logs, so losing the number
   also loses an inherited caveat.
+
+## Review against the issue, 2026-09-11
+
+Checked with a reader in mind who has just read the acceptance criteria and scrolled down. The issue
+has no other comments, so this is the first thing they hit.
+
+Changed as a result:
+
+- Added an opening that says what the three comments are. Without it the reader lands mid-walkthrough
+  with no idea where the verdict lives.
+- Anchored both views to the criteria's names, "Renderer A" and "Renderer B", once each. The draft
+  called them the pattern table and the volume comparison throughout, leaving the reader to translate
+  while ticking off a checklist.
+- **Flagged the deviation from "Baseline-overlaid histogram".** The criterion says overlaid; the
+  build clusters the bars. The draft said "clustered bar series" and left it, which either reads as a
+  silent miss or gets spotted as one. It now names the difference and the reason.
+- Added the baseline picker to step 4. "Baseline epoch picker" is its own criterion and the draft
+  only said the baseline moves with the window, which is a different claim. The control is visible in
+  the shot but was not described.
+- Added what Investigate does. It is a named criterion and the draft mentioned the button twice
+  without ever saying what it is for.
+- Replaced "comment 2" and "comment 3" with "the next comment" and "the third comment". Nothing links
+  until they are posted, and a numbered reference to a comment that does not exist reads as broken.
+
+Left alone, and worth a decision:
+
+- **Length.** Ten images and about 2,200 words. GitHub will fold it behind "show more". Dropping
+  `03a` (only useful beside `03b`) and `07b` would cut two images without losing a step.
+- **The title says "sifting", this says exploration.** The PoC renamed it deliberately. A reader may
+  wonder whether this is the same effort. One clause would close it, or retitle the issue.
+- **"The cut"** carries a lot of weight and is PoC jargon. It is introduced in step 2 and used about
+  ten times after. A reader who skims may never pick it up.
+- **No verdict here, by design.** A reader arriving at the first comment on an issue whose final
+  criterion is "a written verdict" may expect one. The new opening points forward instead.

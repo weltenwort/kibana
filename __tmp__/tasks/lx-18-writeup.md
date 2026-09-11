@@ -293,3 +293,53 @@ measured. If something reads as a conclusion the evidence does not support, cut 
   unreliable on this page. Scroll, then clip to the region between the sticky header and the fixed
   message box.
 - Next: unchanged. Comment 2, or comment 3 once the concurrent-efforts questions are answered.
+
+### 2026-09-11 — Unslop pass over comment 1
+
+- Ran the `unslop` rewrite flow over `__tmp__/6059-comment-1-journey.md`. All four scanners were
+  already clean on the source (0 banned phrases, no structure flags, no silhouette flags), so every
+  finding came from reading rather than from tooling.
+- Changed: four sentences, 1.1% of the document.
+  - Step 4: "the agent is asked, so the agent is asked about a view … rather than being asked to
+    rebuild one" — three uses of "asked" in one sentence.
+  - Step 6: "the agent answers … and will point out that the picker has moved" asserted a general
+    behaviour on the strength of one observation. Back to past tense, which is what was seen.
+  - "What the agent sees": "so it can work out that a reading has gone stale rather than having to be
+    told that it might have" — the trailing ellipsis was opaque. Now "check whether … rather than
+    simply being warned that it might be".
+  - Draft notes: "harder to follow than the images" compared the wrong two things.
+- Verified: diff shows only those four hunks. All 22 quoted strings byte-identical between original
+  and rewrite. Post-rewrite scanners unchanged and clean; readability grade 12.9, no staccato.
+- **`validate_preservation.py` reports 36/38 and fails, and the failure is a false positive.** Its
+  quote extractor pairs the closing `"` of one short phrase with the opening `"` of a much later one,
+  producing two multi-paragraph pseudo-quotes that happen to straddle two of the edits. Confirmed by
+  extracting and diffing the real quoted strings, which are identical. Worth knowing before anyone
+  trusts that script on a document with many short quoted UI labels.
+- Unverified: nothing new was driven. No screenshot, number or claim changed.
+- Next: unchanged. Comment 2, or comment 3 once the concurrent-efforts questions are answered.
+
+### 2026-09-11 — Reviewed comment 1 against the issue itself
+
+- Checked the live issue: `gh issue view 6059 --repo elastic/observability-dev` reports **state open,
+  zero comments**, label `Team:obs-signals-logs`, title still "[Logs Exploration] PoC: interactive
+  renderers for iterative log sifting in Agent Chat". So this will be the first comment on the
+  thread, read straight after the acceptance-criteria checklist.
+- Changed: `__tmp__/6059-comment-1-journey.md`.
+  - New opening saying what the three comments are and that the verdict is in the third.
+  - Anchored the two views to the criteria's own names, "Renderer A" and "Renderer B", once each.
+  - **Named the deviation from the "Baseline-overlaid histogram" criterion.** The criterion says
+    overlaid, the build clusters. The draft had said "clustered bar series" with no acknowledgement,
+    which reads as a silent miss to anyone ticking the list.
+  - Added the baseline picker to step 4. "Baseline epoch picker" is its own criterion; the draft only
+    said the baseline moves with the window, which is a different claim.
+  - Added what Investigate does. Also a named criterion, mentioned twice as a button and never
+    explained.
+  - "comment 2" / "comment 3" → "the next comment" / "the third comment", since nothing links until
+    they are posted.
+  - Moved the internal screenshot notes below an explicit "Working notes below this line" heading, so
+    the postable region is unambiguous.
+- Left for the user, recorded in the draft's notes: whether to drop two images for length, whether to
+  reconcile the issue title's "sifting" with the PoC's "exploration" naming, and whether "the cut"
+  needs a gloss.
+- Unverified: nothing driven. No screenshot, number or claim changed.
+- Next: unchanged. Comment 2, or comment 3 once the concurrent-efforts questions are answered.
